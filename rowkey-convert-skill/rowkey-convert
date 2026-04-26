@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""Convert HBase rowkey between mixed (hbase shell), hex, and bytes array formats."""
+
+import argparse
+import re
+import sys
+
+
+# ---------- detection ----------
+
+def detect_format(s: str) -> str:
+    """Detect input format: 'mixed', 'hex', or 'bytes'."""
+    s = s.strip()
+    if not s:
+        return "empty"
+    if re.match(r'^\[.*\]$', s):
+        return "bytes"
+    if re.search(r'\\x[0-9a-fA-F]{2}', s):
+        return "mixed"
+    if re.fullmatch(r'[0-9a-fA-F]+', s) and len(s) % 2 == 0:
+        return "hex"
+    # ambiguous: could be all-printable mixed like "hello"
+    return "mixed"
+
+
+# ---------- parsing ----------
+
+def parse_mixed(s: str) -> list[int]:
+    """Parse mixed-format string into list of byte values."""
+    result = []
+    i = 0
+    while i < len(s):
+        if s[i] == '\\' and i + 3 < len(s) and s[i+1] == 'x':
+            result.append(int(s[i+2:i+4], 16))
+            i += 4
+        else:
+            result.append(ord(s[i]))
+            i += 1
+    return result
+
+
+def parse_hex(s: str) -> list[int]:
+    """Parse even-length hex string into list of byte values."""
+    s = s.strip()
+    return [int(s[i:i+2], 16) for i in range(0, len(s), 2)]
+
+
+def parse_bytes(s: str) -> list[int]:
+    """Parse bytes array string like '[0, 255, 0xFF]' into list of byte values."""
+    inner = s.strip().strip('[]')
+    if not inner:
+        return []
+    result = []
+    for token in inner.split(','):
+        token = token.strip()
+        if token.startswith('0x') or token.startswith('0X'):
+            val = int(token, 16)
+        else:
+            val = int(token)
+        if not (0 <= val <= 255):
+            raise ValueError(f"Byte value out of range: {val}")
+        result.append(val)
+    return result
+
+
+def parse_input(s: str) -> list[int]:
+    """Auto-detect format and parse into byte list."""
+    fmt = detect_format(s)
+    if fmt == "empty":
+        raise ValueError("Empty input. Provide a mixed string (e.g. \\x00\\xFFhello), "
+                         "hex string (e.g. 00FF6865), or bytes array (e.g. [0, 255, 104]).")
+    elif fmt == "mixed":
+        return parse_mixed(s)
+    elif fmt == "hex":
+        return parse_hex(s)
+    elif fmt == "bytes":
+        return parse_bytes(s)
+    raise ValueError(f"Unsupported format: {s[:50]}")
+
+
+# ---------- formatting ----------
+
+def format_hex(byte_list: list[int]) -> str:
+    """Format as continuous hex string, e.g. 00FF6865."""
+    return ''.join(f'{b:02X}' for b in byte_list)
+
+
+def format_escaped(byte_list: list[int]) -> str:
+    """Format as \\xHH escaped string, e.g. \\x00\\xFF\\x68\\x65."""
+    return ''.join(f'\\x{b:02X}' for b in byte_list)
+
+
+def format_bytes(byte_list: list[int]) -> str:
+    """Format as bytes array, e.g. [0, 255, 104, 101]."""
+    return '[' + ', '.join(str(b) for b in byte_list) + ']'
+
+
+def format_annotated(byte_list: list[int]) -> str:
+    """Format as hex dump with ASCII annotation line."""
+    hex_line = ' '.join(f'{b:02X}' for b in byte_list)
+    ascii_line = ' '.join(_char_for_annotate(b) for b in byte_list)
+    return hex_line + '\n' + ascii_line
+
+
+def format_mixed(byte_list: list[int]) -> str:
+    """Format as mixed string: printable ASCII as chars, rest as \\xHH."""
+    result = []
+    for b in byte_list:
+        if 0x20 <= b <= 0x7E:
+            result.append(chr(b))
+        else:
+            result.append(f'\\x{b:02X}')
+    return ''.join(result)
+
+
+def _char_for_annotate(b: int) -> str:
+    """Single char for annotated line: printable ASCII, else '.'."""
+    if 0x20 <= b <= 0x7E:
+        return ' ' + chr(b) + ' '
+    else:
+        return ' . '
+
+
+# ---------- main ----------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Convert HBase rowkey between mixed (hbase shell), hex, escapped,'
+                    ' bytes array, and annotated formats.'
+    )
+    parser.add_argument(
+        'input', type=str,
+        help='Rowkey in mixed (\\x00\\xFFhello), hex (00FF68656C6C6F), or bytes ([0, 255, 104]) format'
+    )
+    parser.add_argument(
+        '--format', '-f',
+        choices=['hex', 'escaped', 'bytes', 'annotated', 'mixed', 'all'],
+        default='all',
+        help='Output format (default: all)'
+    )
+    args = parser.parse_args()
+
+    try:
+        byte_list = parse_input(args.input)
+    except ValueError as e:
+        print(f'Error: {e}', file=sys.stderr)
+        sys.exit(1)
+    fmt = args.format
+
+    formats = [
+        ('hex',       'Hex',       format_hex(byte_list)),
+        ('escaped',   'Escaped',   format_escaped(byte_list)),
+        ('bytes',     'Bytes',     format_bytes(byte_list)),
+        ('annotated', 'Annotated', format_annotated(byte_list)),
+        ('mixed',     'Mixed',     format_mixed(byte_list)),
+    ]
+
+    if fmt == 'all':
+        for _, label, value in formats:
+            print(f'[{label}]\n{value}\n')
+    else:
+        for key, label, value in formats:
+            if key == fmt:
+                print(f'[{label}]\n{value}')
+                break
+
+
+if __name__ == '__main__':
+    main()
