@@ -56,7 +56,7 @@
 - [ ] **#15 CLAUDE.md 中 `--format` 选项列表漏了 `all`** — 代码实际支持但文档未列
 - [ ] **#20 安装说明仅覆盖 zsh** — README 追加 PATH 只写 zsh，bash/fish/Windows 用户缺失
 - [ ] **#25 .gitignore 无 Windows 排除项** — 缺少 `Thumbs.db`、`Desktop.ini` 等
-- [ ] **#29 目录结构不符合推荐规范** — 标准推荐 `scripts/` 子目录存放可执行代码，当前脚本与 SKILL.md 平级
+- [ ] **#29 目录结构不符合推荐规范** — 标准推荐 `scripts/` 子目录存放可执行代码，当前脚本和测试文件与 SKILL.md 平级。需将 `rowkey-convert` → `scripts/rowkey-convert`，`test_rowkey_convert.py` → `tests/test_rowkey_convert.py`，并同步更新：SKILL.md 路径、README.md CLI 示例、CLAUDE.md 引用、测试中 `SCRIPT` 路径
 
 ### 兄弟 skill 同步
 - [ ] **#19 time-convert 同样存在 Python 3.9 依赖** — `from zoneinfo import ZoneInfo` 也是 3.9+，3.8 需 `pip install backports.zoneinfo`
