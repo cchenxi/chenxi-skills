@@ -12,7 +12,7 @@ Convert HBase rowkey between mixed, hex, escaped, bytes array, and annotated for
 ## Usage
 
 ```bash
-python3 ./rowkey-convert '<input>' [--format hex|escaped|bytes|annotated|mixed|all]
+python3 ./scripts/rowkey-convert '<input>' [--format hex|escaped|bytes|annotated|mixed|all]
 ```
 
 If `python3` is not available, try `python` or `python3.9`.
@@ -21,7 +21,7 @@ If `python3` is not available, try `python` or `python3.9`.
 
 ### Forward: mixed → all formats
 ```bash
-python3 ./rowkey-convert '\x00\xFFhello'
+python3 ./scripts/rowkey-convert '\x00\xFFhello'
 ```
 ```
 [Hex]
@@ -43,17 +43,17 @@ python3 ./rowkey-convert '\x00\xFFhello'
 
 ### Reverse: hex → all formats
 ```bash
-python3 ./rowkey-convert 00FF68656C6C6F
+python3 ./scripts/rowkey-convert 00FF68656C6C6F
 ```
 
 ### Reverse: bytes array → all formats
 ```bash
-python3 ./rowkey-convert '[0, 255, 104, 101, 108, 108, 111]'
+python3 ./scripts/rowkey-convert '[0, 255, 104, 101, 108, 108, 111]'
 ```
 
 ### Single format output
 ```bash
-python3 ./rowkey-convert '\x00\xFFhello' --format escaped
+python3 ./scripts/rowkey-convert '\x00\xFFhello' --format escaped
 ```
 ```
 [Escaped]

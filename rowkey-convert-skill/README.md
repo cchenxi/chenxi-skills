@@ -62,5 +62,5 @@ Skill 文件位于 `SKILL.md`，本质是对 CLI 脚本的薄封装。
 ## 运行测试
 
 ```bash
-python3 -m unittest test_rowkey_convert -v
+python3 -m unittest tests/test_rowkey_convert.py -v
 ```

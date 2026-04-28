@@ -5,7 +5,7 @@ import sys
 import unittest
 from pathlib import Path
 
-SCRIPT = Path(__file__).parent / "rowkey-convert"
+SCRIPT = Path(__file__).parent.parent / "scripts" / "rowkey-convert"
 
 
 def run(input_str: str, *args: str) -> subprocess.CompletedProcess:
