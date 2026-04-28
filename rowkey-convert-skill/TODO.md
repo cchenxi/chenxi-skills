@@ -5,16 +5,16 @@
 ## P0 — 必须修
 
 ### 功能测试
-- [ ] **#7 `--format annotated` 无独立测试** — 其他 4 种格式都有 flag 测试，唯独 annotated 没有
+- [x] **#7 `--format annotated` 无独立测试** — 其他 4 种格式都有 flag 测试，唯独 annotated 没有
 
 ### SKILL.md 质量
-- [ ] **#12 SKILL.md 过于简略** — 加 3-5 个输入/输出示例 + 错误处理指引（告诉 Claude 如何向用户展示结果、出错时怎么说），对标 time-convert 的 SKILL.md
-- [ ] **#28 description 缺乏触发场景** — 当前只描述 WHAT 没描述 WHEN。标准要求 description 包含触发条件，避免 under-triggering。建议改为含 `Use when the user pastes a rowkey string...` 句式
-- [ ] **#27 缺少 `allowed-tools` 字段** — Claude Code 扩展字段。不加的话每次调用脚本可能弹出权限确认，应声明 `Bash` 权限
+- [x] **#12 SKILL.md 过于简略** — 加 3-5 个输入/输出示例 + 错误处理指引（告诉 Claude 如何向用户展示结果、出错时怎么说），对标 time-convert 的 SKILL.md
+- [x] **#28 description 缺乏触发场景** — 当前只描述 WHAT 没描述 WHEN。标准要求 description 包含触发条件，避免 under-triggering。建议改为含 `Use when the user pastes a rowkey string...` 句式
+- [x] **#27 缺少 `allowed-tools` 字段** — Claude Code 扩展字段。不加的话每次调用脚本可能弹出权限确认，应声明 `Bash` 权限
 
 ### Python 依赖
-- [ ] **#16 未声明 Python 最低版本** — `list[int]` 类型注解 (PEP 585) 需要 Python ≥ 3.9。若用户只有 3.7/3.8 会报 `TypeError: 'type' object is not subscriptable`，信息极不友好。README/SKILL.md/CLAUDE.md 均未写明
-- [ ] **#17 `python3` 命令名不通用** — SKILL.md 中硬编码 `python3`。部分 Linux 只有 `python`，Windows 上是 `py` 或 `python`。需加 fallback 指引
+- [x] **#16 未声明 Python 最低版本** — `list[int]` 类型注解 (PEP 585) 需要 Python ≥ 3.9。若用户只有 3.7/3.8 会报 `TypeError: 'type' object is not subscriptable`，信息极不友好。README/SKILL.md/CLAUDE.md 均未写明
+- [x] **#17 `python3` 命令名不通用** — SKILL.md 中硬编码 `python3`。部分 Linux 只有 `python`，Windows 上是 `py` 或 `python`。需加 fallback 指引
 
 ## P1 — 建议修
 
