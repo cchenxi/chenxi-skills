@@ -94,6 +94,13 @@ class TestFormatFlag(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertIn(r"\x00\xFFhello", r.stdout)
 
+    def test_format_annotated_only(self):
+        r = run(r"\x00\xFFhello", "--format", "annotated")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("00 FF 68 65 6C 6C 6F", r.stdout)
+        self.assertIn(" .   .   h   e   l   l   o", r.stdout)
+        self.assertNotIn("Escaped", r.stdout)
+
 
 class TestErrorHandling(unittest.TestCase):
     """Invalid inputs produce clean errors"""
