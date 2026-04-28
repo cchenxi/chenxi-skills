@@ -13,7 +13,7 @@ A single Python 3 CLI script that converts HBase rowkeys between formats commonl
 python3 ./scripts/rowkey-convert '<input>'
 
 # Output a specific format only
-python3 ./scripts/rowkey-convert '<input>' --format hex|escaped|bytes|annotated|mixed
+python3 ./scripts/rowkey-convert '<input>' --format hex|escaped|bytes|annotated|mixed|all
 ```
 
 ## Architecture
