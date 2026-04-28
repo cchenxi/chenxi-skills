@@ -19,15 +19,15 @@
 ## P1 — 建议修
 
 ### 文档与标准
-- [ ] **#14 缺少与 time-convert 的交叉引用** — SKILL.md 中提一下 time-convert 可以解析行键中的时间戳
+- [x] **#14 缺少与 time-convert 的交叉引用** — SKILL.md 中提一下 time-convert 可以解析行键中的时间戳
 - [ ] **#13 SKILL.md 与 README.md 内容重叠** — SKILL.md 应侧重"指导 Claude 行为"而非重复 README 内容
 - [ ] **#31 缺少 `user-invocable` 显式声明** — 虽默认 true 行为正确，但纯工具型 skill 应显式声明
-- [ ] **#33 仓库 SKILL.md 与实际安装的不同步** — 仓库写 `python3 ./rowkey-convert`，安装后变 `python3 ~/.claude/skills/rowkey-convert/rowkey-convert`。两份内容有差异，维护易遗漏
-- [ ] **#34 脚本路径在 SKILL.md 中硬编码** — 换安装路径就需改 SKILL.md。应让 Claude 基于 SKILL.md 所在目录推导脚本路径
+- [x] **#33 仓库 SKILL.md 与实际安装的不同步** — 仓库写 `python3 ./rowkey-convert`，安装后变 `python3 ~/.claude/skills/rowkey-convert/rowkey-convert`。两份内容有差异，维护易遗漏。已改为相对路径 `./scripts/rowkey-convert`，仓库与安装版本一致
+- [x] **#34 脚本路径在 SKILL.md 中硬编码** — 换安装路径就需改 SKILL.md。已改为相对路径 `./scripts/rowkey-convert`，基于 SKILL.md 所在目录推导
 
 ### 代码健壮性
 - [ ] **#4 `parse_mixed` 中非法 hex（如 `\xGG`）错误信息不友好** — 抛 Python 原生 `ValueError: invalid literal for int() with base 16: 'GG'`，应包装为用户可读的提示
-- [ ] **#18 无 Python 可用性探测指引** — SKILL.md 中无一言提及"如果 python3 不可用怎么办"，Claude 只能靠试错
+- [x] **#18 无 Python 可用性探测指引** — SKILL.md 中无一言提及"如果 python3 不可用怎么办"，Claude 只能靠试错。已在 SKILL.md 加入回退策略（`python` / `python3.9`）+ frontmatter `dependencies` 声明
 
 ### Windows 兼容性
 - [ ] **#21 Windows shebang 无效** — `#!/usr/bin/env python3` 在 CMD 中忽略，PowerShell 中 `env` 不存在
@@ -53,10 +53,10 @@
 - [ ] **#6 没有对超长输入的保护** — 缺少 `--max-length` 类保护
 
 ### 文档
-- [ ] **#15 CLAUDE.md 中 `--format` 选项列表漏了 `all`** — 代码实际支持但文档未列
+- [x] **#15 CLAUDE.md 中 `--format` 选项列表漏了 `all`** — 代码实际支持但文档未列。已追加
 - [ ] **#20 安装说明仅覆盖 zsh** — README 追加 PATH 只写 zsh，bash/fish/Windows 用户缺失
 - [ ] **#25 .gitignore 无 Windows 排除项** — 缺少 `Thumbs.db`、`Desktop.ini` 等
-- [ ] **#29 目录结构不符合推荐规范** — 标准推荐 `scripts/` 子目录存放可执行代码，当前脚本与 SKILL.md 平级
+- [x] **#29 目录结构不符合推荐规范** — 标准推荐 `scripts/` 子目录存放可执行代码，当前脚本和测试文件与 SKILL.md 平级。已将 `rowkey-convert` → `scripts/rowkey-convert`，`test_rowkey_convert.py` → `tests/test_rowkey_convert.py`，并同步更新所有路径引用
 
 ### 兄弟 skill 同步
 - [ ] **#19 time-convert 同样存在 Python 3.9 依赖** — `from zoneinfo import ZoneInfo` 也是 3.9+，3.8 需 `pip install backports.zoneinfo`
