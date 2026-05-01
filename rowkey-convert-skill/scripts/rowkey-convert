@@ -9,12 +9,19 @@ import sys
 # ---------- detection ----------
 
 def detect_format(s: str) -> str:
-    """Detect input format: 'mixed', 'hex', or 'bytes'."""
+    """Detect input format: 'mixed', 'hex', 'bytes', or 'annotated'."""
     s = s.strip()
     if not s:
         return "empty"
+    if s == '[]':
+        return "empty"
     if re.match(r'^\[.*\]$', s):
         return "bytes"
+    if '\n' in s:
+        lines = s.split('\n')
+        hex_tokens = lines[0].strip().split()
+        if hex_tokens and all(re.fullmatch(r'[0-9a-fA-F]{2}', t) for t in hex_tokens):
+            return "annotated"
     if re.search(r'\\x[0-9a-fA-F]{2}', s):
         return "mixed"
     if re.fullmatch(r'[0-9a-fA-F]+', s) and len(s) % 2 == 0:
@@ -31,7 +38,13 @@ def parse_mixed(s: str) -> list[int]:
     i = 0
     while i < len(s):
         if s[i] == '\\' and i + 3 < len(s) and s[i+1] == 'x':
-            result.append(int(s[i+2:i+4], 16))
+            try:
+                result.append(int(s[i+2:i+4], 16))
+            except ValueError:
+                raise ValueError(
+                    f"Invalid hex escape '\\x{s[i+2:i+4]}' at position {i}. "
+                    f"Expected two hex digits after \\x, e.g. \\x00, \\xFF."
+                )
             i += 4
         else:
             result.append(ord(s[i]))
@@ -63,6 +76,12 @@ def parse_bytes(s: str) -> list[int]:
     return result
 
 
+def parse_annotated(s: str) -> list[int]:
+    """Parse annotated (hex dump) format into list of byte values."""
+    hex_line = s.strip().split('\n')[0].strip()
+    return [int(t, 16) for t in hex_line.split()]
+
+
 def parse_input(s: str) -> list[int]:
     """Auto-detect format and parse into byte list."""
     fmt = detect_format(s)
@@ -75,6 +94,8 @@ def parse_input(s: str) -> list[int]:
         return parse_hex(s)
     elif fmt == "bytes":
         return parse_bytes(s)
+    elif fmt == "annotated":
+        return parse_annotated(s)
     raise ValueError(f"Unsupported format: {s[:50]}")
 
 
@@ -121,32 +142,31 @@ def _char_for_annotate(b: int) -> str:
         return ' . '
 
 
-# ---------- main ----------
+# ---------- extract ----------
 
-def main():
-    parser = argparse.ArgumentParser(
-        description='Convert HBase rowkey between mixed (hbase shell), hex, escapped,'
-                    ' bytes array, and annotated formats.'
-    )
-    parser.add_argument(
-        'input', type=str,
-        help='Rowkey in mixed (\\x00\\xFFhello), hex (00FF68656C6C6F), or bytes ([0, 255, 104]) format'
-    )
-    parser.add_argument(
-        '--format', '-f',
-        choices=['hex', 'escaped', 'bytes', 'annotated', 'mixed', 'all'],
-        default='all',
-        help='Output format (default: all)'
-    )
-    args = parser.parse_args()
+def extract_rowkeys(s: str, fmt_filter: str) -> None:
+    """Extract rowkey candidates from mixed text (e.g. log lines)."""
+    found = False
 
-    try:
-        byte_list = parse_input(args.input)
-    except ValueError as e:
-        print(f'Error: {e}', file=sys.stderr)
-        sys.exit(1)
-    fmt = args.format
+    # Find \xHH sequences
+    for m in re.finditer(r'(\\x[0-9a-fA-F]{2})+', s):
+        found = True
+        print(f'--- rowkey at offset {m.start()} ---')
+        try:
+            byte_list = parse_mixed(m.group())
+        except ValueError as e:
+            print(f'  (parse error: {e})')
+            continue
+        print_formats(byte_list, fmt_filter)
 
+    if not found:
+        print('No rowkey candidates found in input.')
+
+
+# ---------- output ----------
+
+def print_formats(byte_list: list[int], fmt: str) -> None:
+    """Print byte list in the requested format(s)."""
     formats = [
         ('hex',       'Hex',       format_hex(byte_list)),
         ('escaped',   'Escaped',   format_escaped(byte_list)),
@@ -163,6 +183,63 @@ def main():
             if key == fmt:
                 print(f'[{label}]\n{value}')
                 break
+
+
+# ---------- main ----------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Convert HBase rowkey between mixed (hbase shell), hex, escapped,'
+                    ' bytes array, and annotated formats.'
+    )
+    parser.add_argument(
+        'input', type=str, nargs='?',
+        help='Rowkey in mixed (\\x00\\xFFhello), hex (00FF68656C6C6F), bytes ([0, 255, 104]), '
+             'or annotated (hex dump) format. Use "-" or omit with -e for stdin.'
+    )
+    parser.add_argument(
+        '--format', '-f',
+        choices=['hex', 'escaped', 'bytes', 'annotated', 'mixed', 'all'],
+        default='all',
+        help='Output format (default: all)'
+    )
+    parser.add_argument(
+        '--max-length', '-m', type=int, default=0,
+        help='Maximum input byte length (default: 0 = no limit)'
+    )
+    parser.add_argument(
+        '-e', '--extract', action='store_true',
+        help='Extract rowkeys from mixed text (e.g. log lines containing \\xHH sequences)'
+    )
+    args = parser.parse_args()
+
+    # Read from stdin if needed (use binary mode + latin-1 to preserve all byte values)
+    if args.input is None or args.input == '-':
+        raw = sys.stdin.buffer.read()
+        args.input = raw.decode('latin-1').strip()
+        if not args.input:
+            print('Error: no input provided (stdin was empty).', file=sys.stderr)
+            sys.exit(1)
+
+    if args.extract:
+        extract_rowkeys(args.input, args.format)
+        return
+
+    try:
+        byte_list = parse_input(args.input)
+    except ValueError as e:
+        print(f'Error: {e}', file=sys.stderr)
+        sys.exit(1)
+
+    if args.max_length > 0 and len(byte_list) > args.max_length:
+        print(
+            f'Error: input is {len(byte_list)} bytes, exceeds --max-length {args.max_length}. '
+            f'Increase --max-length or trim the input.',
+            file=sys.stderr
+        )
+        sys.exit(1)
+
+    print_formats(byte_list, args.format)
 
 
 if __name__ == '__main__':

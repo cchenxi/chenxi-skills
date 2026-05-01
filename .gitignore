@@ -10,3 +10,5 @@ build/
 .venv
 venv/
 .claude/
+Thumbs.db
+Desktop.ini
