@@ -195,6 +195,58 @@ def print_formats(byte_list: list[int], fmt: str, input_str: str = '', detected_
                 break
 
 
+# ---------- batch ----------
+
+def batch_process(input_text: str, fmt: str, max_length: int) -> int:
+    """Process input line-by-line as independent rowkeys. Returns exit code."""
+    lines = input_text.split('\n')
+    success_count = 0
+    fail_count = 0
+
+    for i, line in enumerate(lines, start=1):
+        line = line.strip()
+        if not line:
+            continue
+
+        try:
+            byte_list = parse_input(line)
+        except ValueError as e:
+            print(f'Warning: line {i}: {e}', file=sys.stderr)
+            fail_count += 1
+            continue
+
+        if max_length > 0 and len(byte_list) > max_length:
+            print(
+                f'Warning: line {i}: input is {len(byte_list)} bytes, '
+                f'exceeds --max-length {max_length}.',
+                file=sys.stderr
+            )
+            fail_count += 1
+            continue
+
+        detected_fmt = detect_format(line)
+        if fmt == 'all':
+            print(f'--- [{i}] ({detected_fmt}) ---')
+            print_formats(byte_list, fmt, line, detected_fmt)
+        else:
+            for key, label, value in [
+                ('mixed', None, format_mixed(byte_list)),
+                ('hex', None, format_hex(byte_list)),
+                ('escaped', None, format_escaped(byte_list)),
+                ('annotated', None, format_annotated(byte_list)),
+                ('bytes', None, format_bytes(byte_list)),
+                ('java', None, format_java_bytes(byte_list)),
+            ]:
+                if key == fmt:
+                    print(value)
+                    break
+        success_count += 1
+
+    if fail_count > 0 and success_count == 0:
+        return 1
+    return 0
+
+
 # ---------- main ----------
 
 def main():
@@ -221,6 +273,10 @@ def main():
         '-e', '--extract', action='store_true',
         help='Extract rowkeys from mixed text (e.g. log lines containing \\xHH sequences)'
     )
+    parser.add_argument(
+        '-b', '--batch', action='store_true',
+        help='Batch mode: treat each line of input as an independent rowkey'
+    )
     args = parser.parse_args()
 
     # Read from stdin if needed (use binary mode + latin-1 to preserve all byte values)
@@ -231,9 +287,16 @@ def main():
             print('Error: no input provided (stdin was empty).', file=sys.stderr)
             sys.exit(1)
 
+    if args.batch and args.extract:
+        print('Error: --batch and --extract are mutually exclusive.', file=sys.stderr)
+        sys.exit(1)
+
     if args.extract:
         extract_rowkeys(args.input, args.format)
         return
+
+    if args.batch:
+        sys.exit(batch_process(args.input, args.format, args.max_length))
 
     try:
         byte_list = parse_input(args.input)

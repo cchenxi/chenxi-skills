@@ -220,5 +220,76 @@ class TestInvalidHexError(unittest.TestCase):
         self.assertIn("Invalid hex escape", r.stderr)
 
 
+class TestBatchMode(unittest.TestCase):
+    """--batch flag"""
+
+    def test_batch_all_mode_mixed_formats(self):
+        """Lines with different input formats each auto-detected independently"""
+        r = run(r"\x00\xFFhello" + "\n" + r"00FF68656C6C6F", "--batch", "--format", "all")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("--- [1] (mixed) ---", r.stdout)
+        self.assertIn("--- [2] (hex) ---", r.stdout)
+        self.assertIn(r"\x00\xFFhello", r.stdout)
+        self.assertIn("00FF68656C6C6F", r.stdout)
+
+    def test_batch_specific_format_pipe_friendly(self):
+        """--batch --format hex outputs one value per line"""
+        r = run(r"\x00\xFFhello" + "\n" + "00FF68", "--batch", "--format", "hex")
+        self.assertEqual(r.returncode, 0)
+        lines = r.stdout.strip().split('\n')
+        self.assertEqual(len(lines), 2)
+        self.assertIn("00FF68656C6C6F", lines)
+        self.assertIn("00FF68", lines)
+
+    def test_batch_blank_lines_skipped(self):
+        """Empty lines are silently skipped"""
+        r = run(r"\x00\xFF" + "\n\n\n" + "00FF68", "--batch", "--format", "hex")
+        self.assertEqual(r.returncode, 0)
+        lines = r.stdout.strip().split('\n')
+        self.assertEqual(len(lines), 2)
+
+    def test_batch_error_continues(self):
+        """Parse error on one line warns to stderr, continues processing"""
+        r = run(r"\x00\xFF" + "\n" + r"invalid\xZZ" + "\n" + "00FF68", "--batch", "--format", "hex")
+        self.assertIn("Warning: line 2:", r.stderr)
+        self.assertIn("Invalid hex escape", r.stderr)
+        lines = r.stdout.strip().split('\n')
+        self.assertEqual(len(lines), 2)
+
+    def test_batch_error_exit_code_zero_on_partial_success(self):
+        """Exit code 0 when at least one line succeeds"""
+        r = run(r"\x00\xFF" + "\n" + r"invalid\xZZ", "--batch", "--format", "hex")
+        self.assertEqual(r.returncode, 0)
+
+    def test_batch_all_fail_exit_code_one(self):
+        """Exit code 1 when all lines fail"""
+        r = run(r"invalid\xZZ", "--batch", "--format", "hex")
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_batch_and_extract_mutually_exclusive(self):
+        """--batch --extract together produce error"""
+        r = run(r"\x00\xFF", "--batch", "--extract")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("mutually exclusive", r.stderr)
+
+    def test_batch_with_max_length_exceeded(self):
+        """--max-length applied per-line in batch mode"""
+        r = run(r"\x00\xFFhello" + "\n" + r"\x01", "--batch", "--max-length", "1", "--format", "hex")
+        self.assertIn("Warning: line 1:", r.stderr)
+        self.assertIn("exceeds --max-length", r.stderr)
+        self.assertIn("01", r.stdout)
+
+    def test_batch_stdin(self):
+        """Batch mode with stdin works"""
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT), "-", "--batch", "--format", "hex"],
+            input=r"\x00\xFF" + "\n" + "00FF68",
+            capture_output=True, text=True
+        )
+        self.assertEqual(r.returncode, 0)
+        lines = r.stdout.strip().split('\n')
+        self.assertEqual(len(lines), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
