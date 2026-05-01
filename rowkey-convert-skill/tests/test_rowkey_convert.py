@@ -19,7 +19,7 @@ class TestForwardConversion(unittest.TestCase):
     """mixed → hex / escaped / bytes / annotated"""
 
     def test_all_non_printable(self):
-        r = run(r"\x00\x01\xFF")
+        r = run(r"\x00\x01\xFF", "--format", "all")
         self.assertEqual(r.returncode, 0)
         self.assertIn("0001FF", r.stdout)
         self.assertIn(r"\x00\x01\xFF", r.stdout)
@@ -28,14 +28,14 @@ class TestForwardConversion(unittest.TestCase):
         self.assertIn(r"\x00\x01\xFF", r.stdout)  # mixed output
 
     def test_all_printable(self):
-        r = run("hello")
+        r = run("hello", "--format", "all")
         self.assertEqual(r.returncode, 0)
         self.assertIn("68656C6C6F", r.stdout)
         self.assertIn(r"\x68\x65\x6C\x6C\x6F", r.stdout)
         self.assertIn("[104, 101, 108, 108, 111]", r.stdout)
 
     def test_mixed(self):
-        r = run(r"\x00\xFFhello\x01")
+        r = run(r"\x00\xFFhello\x01", "--format", "all")
         self.assertEqual(r.returncode, 0)
         self.assertIn("00FF68656C6C6F01", r.stdout)
         self.assertIn(r"\x00\xFF\x68\x65\x6C\x6C\x6F\x01", r.stdout)
@@ -43,7 +43,7 @@ class TestForwardConversion(unittest.TestCase):
         self.assertIn(r"\x00\xFFhello\x01", r.stdout)  # mixed output
 
     def test_single_byte(self):
-        r = run(r"\x41")
+        r = run(r"\x41", "--format", "all")
         self.assertEqual(r.returncode, 0)
         self.assertIn("41", r.stdout)
 
@@ -52,19 +52,19 @@ class TestReverseConversion(unittest.TestCase):
     """hex / bytes → mixed"""
 
     def test_hex_to_all(self):
-        r = run("00FF68656C6C6F")
+        r = run("00FF68656C6C6F", "--format", "all")
         self.assertEqual(r.returncode, 0)
         self.assertIn("00FF68656C6C6F", r.stdout)
         self.assertIn(r"\x00\xFFhello", r.stdout)
 
     def test_bytes_decimal_to_all(self):
-        r = run("[0, 255, 104]")
+        r = run("[0, 255, 104]", "--format", "all")
         self.assertEqual(r.returncode, 0)
         self.assertIn("00FF68", r.stdout)
         self.assertIn(r"\x00\xFFh", r.stdout)
 
     def test_bytes_hex_prefix_to_all(self):
-        r = run("[0x00, 0xFF, 0x68]")
+        r = run("[0x00, 0xFF, 0x68]", "--format", "all")
         self.assertEqual(r.returncode, 0)
         self.assertIn("00FF68", r.stdout)
         self.assertIn(r"\x00\xFF\x68", r.stdout)
@@ -100,6 +100,19 @@ class TestFormatFlag(unittest.TestCase):
         self.assertIn("00 FF 68 65 6C 6C 6F", r.stdout)
         self.assertIn(" .   .   h   e   l   l   o", r.stdout)
         self.assertNotIn("Escaped", r.stdout)
+
+    def test_format_java_only(self):
+        r = run(r"\x00\xFFhello\x80", "--format", "java")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("[0, -1, 104, 101, 108, 108, 111, -128]", r.stdout)
+
+    def test_default_is_java(self):
+        """Without --format, default output is Java signed byte array"""
+        r = run(r"\x00\xFFhello")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("[0, -1, 104, 101, 108, 108, 111]", r.stdout)
+        self.assertNotIn("[Hex]", r.stdout)
+        self.assertNotIn("[Escaped]", r.stdout)
 
 
 class TestErrorHandling(unittest.TestCase):
@@ -142,7 +155,7 @@ class TestBytesArrayEdgeCases(unittest.TestCase):
 
     def test_mixed_hex_prefix(self):
         """Bytes array with mixed decimal and 0x prefix: [0x00, 255, 0xFF]"""
-        r = run("[0x00, 255, 0xFF]")
+        r = run("[0x00, 255, 0xFF]", "--format", "all")
         self.assertEqual(r.returncode, 0)
         self.assertIn("00FFFF", r.stdout)
         self.assertIn("[0, 255, 255]", r.stdout)
@@ -163,7 +176,7 @@ class TestAnnotatedReverse(unittest.TestCase):
 
     def test_annotated_to_all(self):
         annotated = "00 FF 68 65\n .   .   h   e"
-        r = run(annotated)
+        r = run(annotated, "--format", "all")
         self.assertEqual(r.returncode, 0)
         self.assertIn("00FF6865", r.stdout)
         self.assertIn(r"\x00\xFFhe", r.stdout)
@@ -173,7 +186,7 @@ class TestExtractMode(unittest.TestCase):
     """--extract flag"""
 
     def test_extract_from_log_line(self):
-        r = run(r"prefix_\x00\xFF_suffix", "--extract")
+        r = run(r"prefix_\x00\xFF_suffix", "--extract", "--format", "all")
         self.assertEqual(r.returncode, 0)
         self.assertIn("rowkey at offset 7", r.stdout)
         self.assertIn(r"\x00\xFF", r.stdout)
@@ -188,7 +201,7 @@ class TestMaxLength(unittest.TestCase):
     """--max-length flag"""
 
     def test_within_limit(self):
-        r = run(r"\x00\xFFhello", "--max-length", "10")
+        r = run(r"\x00\xFFhello", "--max-length", "10", "--format", "all")
         self.assertEqual(r.returncode, 0)
         self.assertIn("00FF68656C6C6F", r.stdout)
 

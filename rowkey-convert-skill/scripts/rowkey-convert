@@ -116,6 +116,13 @@ def format_bytes(byte_list: list[int]) -> str:
     return '[' + ', '.join(str(b) for b in byte_list) + ']'
 
 
+def format_java_bytes(byte_list: list[int]) -> str:
+    """Format as Java signed byte array, e.g. [0, -1, 104, 101]."""
+    def to_signed(b: int) -> int:
+        return b if b < 128 else b - 256
+    return '[' + ', '.join(str(to_signed(b)) for b in byte_list) + ']'
+
+
 def format_annotated(byte_list: list[int]) -> str:
     """Format as hex dump with ASCII annotation line."""
     hex_line = ' '.join(f'{b:02X}' for b in byte_list)
@@ -173,6 +180,7 @@ def print_formats(byte_list: list[int], fmt: str) -> None:
         ('bytes',     'Bytes',     format_bytes(byte_list)),
         ('annotated', 'Annotated', format_annotated(byte_list)),
         ('mixed',     'Mixed',     format_mixed(byte_list)),
+        ('java',      'Java',      format_java_bytes(byte_list)),
     ]
 
     if fmt == 'all':
@@ -199,9 +207,9 @@ def main():
     )
     parser.add_argument(
         '--format', '-f',
-        choices=['hex', 'escaped', 'bytes', 'annotated', 'mixed', 'all'],
-        default='all',
-        help='Output format (default: all)'
+        choices=['hex', 'escaped', 'bytes', 'java', 'annotated', 'mixed', 'all'],
+        default='java',
+        help='Output format (default: java)'
     )
     parser.add_argument(
         '--max-length', '-m', type=int, default=0,
