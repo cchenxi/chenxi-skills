@@ -164,7 +164,7 @@ def extract_rowkeys(s: str, fmt_filter: str) -> None:
         except ValueError as e:
             print(f'  (parse error: {e})')
             continue
-        print_formats(byte_list, fmt_filter)
+        print_formats(byte_list, fmt_filter, m.group())
 
     if not found:
         print('No rowkey candidates found in input.')
@@ -172,18 +172,20 @@ def extract_rowkeys(s: str, fmt_filter: str) -> None:
 
 # ---------- output ----------
 
-def print_formats(byte_list: list[int], fmt: str) -> None:
+def print_formats(byte_list: list[int], fmt: str, input_str: str = '', detected_fmt: str = '') -> None:
     """Print byte list in the requested format(s)."""
     formats = [
+        ('mixed',     'Mixed',     format_mixed(byte_list)),
         ('hex',       'Hex',       format_hex(byte_list)),
         ('escaped',   'Escaped',   format_escaped(byte_list)),
-        ('bytes',     'Bytes',     format_bytes(byte_list)),
         ('annotated', 'Annotated', format_annotated(byte_list)),
-        ('mixed',     'Mixed',     format_mixed(byte_list)),
-        ('java',      'Java',      format_java_bytes(byte_list)),
+        ('bytes',     'Bytes',     format_bytes(byte_list)),
+        ('java',      'Java bytes', format_java_bytes(byte_list)),
     ]
 
     if fmt == 'all':
+        if input_str:
+            print(f'[Input] ({detected_fmt})\n{input_str}\n')
         for _, label, value in formats:
             print(f'[{label}]\n{value}\n')
     else:
@@ -247,7 +249,7 @@ def main():
         )
         sys.exit(1)
 
-    print_formats(byte_list, args.format)
+    print_formats(byte_list, args.format, args.input, detect_format(args.input))
 
 
 if __name__ == '__main__':

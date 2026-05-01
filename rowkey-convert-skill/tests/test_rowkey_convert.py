@@ -111,7 +111,7 @@ class TestFormatFlag(unittest.TestCase):
         r = run(r"\x00\xFFhello")
         self.assertEqual(r.returncode, 0)
         self.assertIn("[Hex]", r.stdout)
-        self.assertIn("[Java]", r.stdout)
+        self.assertIn("[Java bytes]", r.stdout)
         self.assertIn(r"\x00\xFFhello", r.stdout)
 
 

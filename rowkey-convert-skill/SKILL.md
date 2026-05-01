@@ -32,21 +32,27 @@ Additional modes:
 python3 ./scripts/rowkey-convert '\x00\xFFhello'
 ```
 ```
+[Input] (mixed)
+\x00\xFFhello
+
+[Mixed]
+\x00\xFFhello
+
 [Hex]
 00FF68656C6C6F
 
 [Escaped]
 \x00\xFF\x68\x65\x6C\x6C\x6F
 
-[Bytes]
-[0, 255, 104, 101, 108, 108, 111]
-
 [Annotated]
 00 FF 68 65 6C 6C 6F
  .   .   h   e   l   l   o
 
-[Mixed]
-\x00\xFFhello
+[Bytes]
+[0, 255, 104, 101, 108, 108, 111]
+
+[Java bytes]
+[0, -1, 104, 101, 108, 108, 111]
 ```
 
 ### Reverse: hex → all formats
