@@ -106,13 +106,13 @@ class TestFormatFlag(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertIn("[0, -1, 104, 101, 108, 108, 111, -128]", r.stdout)
 
-    def test_default_is_java(self):
-        """Without --format, default output is Java signed byte array"""
+    def test_default_is_all(self):
+        """Without --format, default output is all formats"""
         r = run(r"\x00\xFFhello")
         self.assertEqual(r.returncode, 0)
-        self.assertIn("[0, -1, 104, 101, 108, 108, 111]", r.stdout)
-        self.assertNotIn("[Hex]", r.stdout)
-        self.assertNotIn("[Escaped]", r.stdout)
+        self.assertIn("[Hex]", r.stdout)
+        self.assertIn("[Java]", r.stdout)
+        self.assertIn(r"\x00\xFFhello", r.stdout)
 
 
 class TestErrorHandling(unittest.TestCase):

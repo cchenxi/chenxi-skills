@@ -208,8 +208,8 @@ def main():
     parser.add_argument(
         '--format', '-f',
         choices=['hex', 'escaped', 'bytes', 'java', 'annotated', 'mixed', 'all'],
-        default='java',
-        help='Output format (default: java)'
+        default='all',
+        help='Output format (default: all)'
     )
     parser.add_argument(
         '--max-length', '-m', type=int, default=0,
