@@ -13,7 +13,9 @@ Convert HBase rowkey between mixed, hex, escaped, bytes array, and annotated for
 ## Usage
 
 ```bash
-python3 ./scripts/rowkey-convert '<input>' [--format hex|escaped|bytes|annotated|mixed|all] [--max-length N] [-e]
+python3 ./scripts/rowkey-convert '<input>' [--format hex|escaped|bytes|java|annotated|mixed|all] [--max-length N] [-e]
+
+Default output is `java` (signed byte values, for Java code pasting). Use `--format all` for all formats.
 ```
 
 If `python3` is not available, try `python` or `python3.9`.

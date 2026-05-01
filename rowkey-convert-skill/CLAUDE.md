@@ -13,7 +13,7 @@ A single Python 3 CLI script that converts HBase rowkeys between formats commonl
 python3 ./scripts/rowkey-convert '<input>'
 
 # Output a specific format only
-python3 ./scripts/rowkey-convert '<input>' --format hex|escaped|bytes|annotated|mixed|all
+python3 ./scripts/rowkey-convert '<input>' --format hex|escaped|bytes|java|annotated|mixed|all
 
 # Read from stdin
 echo '\x00\xFFhello' | python3 ./scripts/rowkey-convert -
@@ -35,7 +35,7 @@ Single-file Python script (`scripts/rowkey-convert`) using only stdlib (`argpars
 
 **Input auto-detection** (`detect_format`): `[]` → empty, `[...]` → bytes, `\xHH` present → mixed, even-length hex chars → hex, newline-separated hex tokens → annotated, otherwise → mixed.
 
-**Output formats:** `hex` (continuous uppercase hex), `escaped` (`\xHH` for hbase shell), `bytes` (`[0, 255, ...]`), `annotated` (hex dump with ASCII line), `mixed` (printable chars as-is, rest `\xHH`).
+**Output formats:** `hex` (continuous uppercase hex), `escaped` (`\xHH` for hbase shell), `bytes` (`[0, 255, ...]` unsigned), `java` (`[0, -1, ...]` signed, for Java code pasting), `annotated` (hex dump with ASCII line), `mixed` (printable chars as-is, rest `\xHH`).
 
 **Extract mode** (`-e`): Scans mixed text for `\xHH` sequences and extracts each as a rowkey candidate.
 
