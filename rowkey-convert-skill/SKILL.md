@@ -3,6 +3,7 @@ name: rowkey-convert
 description: Convert HBase rowkey between mixed (hbase shell), hex, escaped, bytes array, and annotated formats. Use when the user pastes a rowkey string like \x00\xFFhello, 00FF68656C6C6F, or [0, 255, 104] and needs to see it in other formats.
 allowed-tools: Bash
 dependencies: python>=3.9
+user-invocable: true
 ---
 
 # Rowkey Convert
@@ -12,10 +13,15 @@ Convert HBase rowkey between mixed, hex, escaped, bytes array, and annotated for
 ## Usage
 
 ```bash
-python3 ./scripts/rowkey-convert '<input>' [--format hex|escaped|bytes|annotated|mixed|all]
+python3 ./scripts/rowkey-convert '<input>' [--format hex|escaped|bytes|annotated|mixed|all] [--max-length N] [-e]
 ```
 
 If `python3` is not available, try `python` or `python3.9`.
+
+Additional modes:
+- **stdin**: use `-` as input, e.g. `echo '\x00\xFF' | python3 ./scripts/rowkey-convert -`
+- **extract**: `-e` scans mixed text (e.g. log lines) for `\xHH` sequences
+- **max-length**: `-m N` limits maximum byte length (safety for large inputs)
 
 ## Examples
 

@@ -105,16 +105,106 @@ class TestFormatFlag(unittest.TestCase):
 class TestErrorHandling(unittest.TestCase):
     """Invalid inputs produce clean errors"""
 
-    def test_empty_input(self):
-        r = run("")
+    def test_empty_bytes_array(self):
+        r = run("[]")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("Error:", r.stderr)
 
-    def test_garbage_input(self):
-        r = run("not_a_valid_input!!!")
-        self.assertEqual(r.returncode, 0)  # treated as mixed
-        # Should output the ASCII bytes of the garbage string
-        self.assertIn("6E6F745F", r.stdout)
+
+class TestRoundTrip(unittest.TestCase):
+    """Round-trip consistency"""
+
+    def test_non_printable_roundtrip(self):
+        """All non-printable bytes: mixed → hex → mixed should match"""
+        r1 = run(r"\x00\x01\xFF\xFE", "--format", "hex")
+        hex_val = r1.stdout.strip().split('\n')[-1]  # last line is the hex value
+        r2 = run(hex_val, "--format", "mixed")
+        self.assertIn(r"\x00\x01\xFF\xFE", r2.stdout)
+
+    def test_printable_roundtrip(self):
+        """All printable: hello → hex → mixed should match"""
+        r1 = run("hello", "--format", "hex")
+        hex_val = r1.stdout.strip().split('\n')[-1]
+        r2 = run(hex_val, "--format", "mixed")
+        self.assertIn("hello", r2.stdout)
+
+    def test_mixed_roundtrip(self):
+        """Mixed printable/non-printable: mixed → hex → mixed should match"""
+        original = r"\x00\xFFhello\x01"
+        r1 = run(original, "--format", "hex")
+        hex_val = r1.stdout.strip().split('\n')[-1]
+        r2 = run(hex_val, "--format", "mixed")
+        self.assertIn(original, r2.stdout)
+
+
+class TestBytesArrayEdgeCases(unittest.TestCase):
+    """Edge cases for bytes array input"""
+
+    def test_mixed_hex_prefix(self):
+        """Bytes array with mixed decimal and 0x prefix: [0x00, 255, 0xFF]"""
+        r = run("[0x00, 255, 0xFF]")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("00FFFF", r.stdout)
+        self.assertIn("[0, 255, 255]", r.stdout)
+
+
+class TestUnicodeInput(unittest.TestCase):
+    """Unicode / non-ASCII input handling"""
+
+    def test_utf8_chinese_in_mixed(self):
+        """中 (U+4E2D) → UTF-8 bytes 0xE4 0xB8 0xAD → \xE4\xB8\xAD in mixed"""
+        r = run(r"\xE4\xB8\xAD", "--format", "mixed")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn(r"\xE4\xB8\xAD", r.stdout)
+
+
+class TestAnnotatedReverse(unittest.TestCase):
+    """Annotated format as input (reverse conversion)"""
+
+    def test_annotated_to_all(self):
+        annotated = "00 FF 68 65\n .   .   h   e"
+        r = run(annotated)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("00FF6865", r.stdout)
+        self.assertIn(r"\x00\xFFhe", r.stdout)
+
+
+class TestExtractMode(unittest.TestCase):
+    """--extract flag"""
+
+    def test_extract_from_log_line(self):
+        r = run(r"prefix_\x00\xFF_suffix", "--extract")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("rowkey at offset 7", r.stdout)
+        self.assertIn(r"\x00\xFF", r.stdout)
+
+    def test_extract_no_match(self):
+        r = run("no rowkey here", "--extract")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("No rowkey candidates found", r.stdout)
+
+
+class TestMaxLength(unittest.TestCase):
+    """--max-length flag"""
+
+    def test_within_limit(self):
+        r = run(r"\x00\xFFhello", "--max-length", "10")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("00FF68656C6C6F", r.stdout)
+
+    def test_exceeds_limit(self):
+        r = run(r"\x00\xFFhello", "--max-length", "2")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("exceeds --max-length", r.stderr)
+
+
+class TestInvalidHexError(unittest.TestCase):
+    r"""Better error message for invalid \xHH"""
+
+    def test_invalid_hex_escape(self):
+        r = run(r"\xGG\x00")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("Invalid hex escape", r.stderr)
 
 
 if __name__ == "__main__":
