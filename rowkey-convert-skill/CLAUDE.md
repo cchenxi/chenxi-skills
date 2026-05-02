@@ -18,6 +18,12 @@ python3 ./scripts/rowkey-convert '<input>' --format hex|escaped|bytes|java|annot
 # Read from stdin
 echo '\x00\xFFhello' | python3 ./scripts/rowkey-convert -
 
+# Batch mode: each line as an independent rowkey
+printf '\x00\xFFhello\n00FF68' | python3 ./scripts/rowkey-convert - --batch
+
+# Batch + specific format (pipe-friendly)
+printf '\x00\xFFhello\n00FF68' | python3 ./scripts/rowkey-convert - --batch --format hex
+
 # Extract rowkeys from mixed text (e.g. log lines)
 python3 ./scripts/rowkey-convert 'prefix_\x00\xFF_data' -e
 
@@ -38,6 +44,8 @@ Single-file Python script (`scripts/rowkey-convert`) using only stdlib (`argpars
 **Output formats:** `hex` (continuous uppercase hex), `escaped` (`\xHH` for hbase shell), `bytes` (`[0, 255, ...]` unsigned), `java` (`[0, -1, ...]` signed, for Java code pasting), `annotated` (hex dump with ASCII line), `mixed` (printable chars as-is, rest `\xHH`).
 
 **Extract mode** (`-e`): Scans mixed text for `\xHH` sequences and extracts each as a rowkey candidate.
+
+**Batch mode** (`-b`/`--batch`): Splits input by newline, treating each line as an independent rowkey with auto-detected format. Blank lines are skipped. Parse errors on a single line emit a `Warning:` to stderr and continue processing remaining lines. Mutually exclusive with `--extract`.
 
 ## Skill
 
