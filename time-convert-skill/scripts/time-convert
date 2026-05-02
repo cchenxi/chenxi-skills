@@ -358,7 +358,7 @@ def main():
     )
     parser.add_argument(
         'input', type=str, nargs='?',
-        help='Time string, Unix timestamp (10-digit), hex, \\xHH escaped, or bytes array.'
+        help='Time string, Unix timestamp (10-digit), hex, \\xHH escaped, or byte array.'
              ' Use "-" to read from stdin.'
     )
     parser.add_argument(
@@ -369,7 +369,7 @@ def main():
         '-f', '--format', type=str,
         choices=['timestamp', 'hex', 'escaped', 'bytes', 'java', 'time', 'all'],
         default='all',
-        help='Output format filter (default: all)'
+        help='Output format filter (default: all); "java" outputs Java signed bytes'
     )
     parser.add_argument(
         '-e', '--extract', action='store_true',
@@ -408,7 +408,7 @@ def main():
     input_type = detect_input_type(args.input)
 
     if input_type == "empty":
-        print('Error: empty input. Provide a time string, timestamp, hex, \\xHH escaped, or bytes array.',
+        print('Error: empty input. Provide a time string, timestamp, hex, \\xHH escaped, or byte array.',
               file=sys.stderr)
         sys.exit(1)
 
