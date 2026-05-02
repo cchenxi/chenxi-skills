@@ -1,6 +1,6 @@
 ---
 name: time-convert
-description: Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp). Forward: time string → timestamp/hex/escaped/bytes/java. Reverse: timestamp/hex/bytes → time string. Supports global timezones, batch mode, stdin.
+description: "Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp). Forward: time → timestamp/hex/escaped/bytes/java. Reverse: timestamp/hex/bytes → time. Supports global timezones, batch mode, stdin."
 allowed-tools: Bash
 dependencies: python>=3.9
 user-invocable: true
