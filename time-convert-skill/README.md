@@ -150,7 +150,7 @@ $ printf '2026-04-26 21:00:00\n69EE0C50' | \
 ### stdin 输入
 
 ```bash
-$ echo '\x69\xEE\x0C\x50' | python3 ./scripts/time-convert -
+$ printf '%s\n' '\x69\xEE\x0C\x50' | python3 ./scripts/time-convert -
 ```
 
 ## 与 rowkey-convert 配合

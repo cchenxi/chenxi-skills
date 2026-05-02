@@ -110,7 +110,7 @@ def detect_input_type(s: str) -> str:
     if re.fullmatch(r'\d{10}', s):
         return "timestamp"
 
-    if re.fullmatch(r'[0-9a-fA-F]{8}', s):
+    if re.fullmatch(r'[0-9a-fA-F]{8}', s) and re.search(r'[a-fA-F]', s):
         return "hex"
 
     return "time"
@@ -210,9 +210,40 @@ def format_time(ts: int, tz) -> str:
     return dt.strftime('%Y-%m-%d %H:%M:%S %z')
 
 
+def convert_to_bytes(input_str: str, tz) -> tuple[int, list[int]]:
+    """Parse input and return (unix_timestamp, list_of_4_bytes). Raises ValueError on failure."""
+    input_type = detect_input_type(input_str)
+    if input_type == "empty":
+        raise ValueError("空输入")
+    if input_type == "time":
+        dt = parse_time_string(input_str, tz)
+        ts = int(dt.timestamp())
+    else:
+        ts = parse_to_timestamp(input_str)
+    ts_bytes = struct.pack('>I', ts)
+    return ts, list(ts_bytes)
+
+
+def _format_single(ts: int, byte_list: list[int], tz, fmt: str) -> str:
+    """Return the value string for a single format."""
+    if fmt == 'timestamp':
+        return str(ts)
+    if fmt == 'hex':
+        return format_hex(byte_list)
+    if fmt == 'escaped':
+        return format_escaped(byte_list)
+    if fmt == 'bytes':
+        return format_bytes(byte_list)
+    if fmt == 'java':
+        return format_java_bytes(byte_list)
+    if fmt == 'time':
+        return format_time(ts, tz)
+    raise ValueError(f"Unknown format: {fmt}")
+
+
 # ---------- extract ----------
 
-def extract_and_print(s: str, tz, fmt_filter: str):
+def extract_and_print(s: str, tz, fmt_filter: str, show_headers: bool = True):
     """Extract 4-byte timestamp candidates from mixed text and print each."""
     found_any = False
 
@@ -227,8 +258,11 @@ def extract_and_print(s: str, tz, fmt_filter: str):
             ts = extract_timestamp_from_bytes(byte_list[offset:offset+4])
             ts_bytes = byte_list[offset:offset+4]
             found_any = True
-            print(f'--- 偏移 {offset} ({format_escaped(ts_bytes)}) ---')
-            print_formats(ts, ts_bytes, tz, fmt_filter)
+            if show_headers:
+                print(f'--- 偏移 {offset} ({format_escaped(ts_bytes)}) ---')
+                print_formats(ts, ts_bytes, tz, fmt_filter)
+            else:
+                print(_format_single(ts, ts_bytes, tz, fmt_filter))
 
     # Also find pure hex sequences (8+ chars, not part of escaped)
     hex_pattern = re.compile(r'[0-9a-fA-F]{8,}')
@@ -242,8 +276,11 @@ def extract_and_print(s: str, tz, fmt_filter: str):
             ts_bytes = [int(chunk[i:i+2], 16) for i in range(0, 8, 2)]
             ts = extract_timestamp_from_bytes(ts_bytes)
             found_any = True
-            print(f'--- 偏移 {offset//2} ({format_escaped(ts_bytes)}) ---')
-            print_formats(ts, ts_bytes, tz, fmt_filter)
+            if show_headers:
+                print(f'--- 偏移 {offset//2} ({format_escaped(ts_bytes)}) ---')
+                print_formats(ts, ts_bytes, tz, fmt_filter)
+            else:
+                print(_format_single(ts, ts_bytes, tz, fmt_filter))
 
     if not found_any:
         print("未在输入中找到时间戳候选。")
@@ -251,27 +288,26 @@ def extract_and_print(s: str, tz, fmt_filter: str):
 
 # ---------- output ----------
 
+FORMAT_LABELS = {
+    'timestamp': 'Timestamp',
+    'hex':       'Hex',
+    'escaped':   'Escaped',
+    'bytes':     'Bytes',
+    'java':      'Java bytes',
+    'time':      'Time',
+}
+
+
 def print_formats(ts: int, ts_bytes: list[int], tz, fmt: str, input_str: str = '', detected_fmt: str = ''):
     """Print timestamp and byte list in the requested format(s)."""
-    formats = [
-        ('timestamp', 'Timestamp',   format_timestamp(ts)),
-        ('hex',       'Hex',         format_hex(ts_bytes)),
-        ('escaped',   'Escaped',     format_escaped(ts_bytes)),
-        ('bytes',     'Bytes',       format_bytes(ts_bytes)),
-        ('java',      'Java bytes',  format_java_bytes(ts_bytes)),
-        ('time',      'Time',        format_time(ts, tz)),
-    ]
-
     if fmt == 'all':
         if input_str:
             print(f'[Input] ({detected_fmt})\n{input_str}\n')
-        for _, label, value in formats:
-            print(f'[{label}]     {value}')
+        for key, label in FORMAT_LABELS.items():
+            print(f'[{label}]     {_format_single(ts, ts_bytes, tz, key)}')
     else:
-        for key, label, value in formats:
-            if key == fmt:
-                print(f'[{label}]     {value}')
-                break
+        label = FORMAT_LABELS.get(fmt, fmt)
+        print(f'[{label}]     {_format_single(ts, ts_bytes, tz, fmt)}')
 
 
 # ---------- batch ----------
@@ -288,57 +324,25 @@ def batch_process(input_text: str, fmt: str, tz, extract: bool) -> int:
             continue
 
         if extract:
-            print(f'--- [{i}] ---')
-            extract_and_print(line, tz, fmt)
+            if fmt == 'all':
+                print(f'--- [{i}] ---')
+            extract_and_print(line, tz, fmt, show_headers=(fmt == 'all'))
             success_count += 1
             continue
 
-        input_type = detect_input_type(line)
-
-        if input_type == "empty":
-            print(f'Warning: line {i}: 空输入', file=sys.stderr)
+        try:
+            ts, byte_list = convert_to_bytes(line, tz)
+        except ValueError as e:
+            print(f'Warning: line {i}: {e}', file=sys.stderr)
             fail_count += 1
             continue
 
-        # Forward: time string → bytes
-        if input_type == "time":
-            try:
-                dt = parse_time_string(line, tz)
-            except ValueError as e:
-                print(f'Warning: line {i}: {e}', file=sys.stderr)
-                fail_count += 1
-                continue
-            ts = int(dt.timestamp())
-            ts_bytes = struct.pack('>I', ts)
-            byte_list = list(ts_bytes)
-        else:
-            # Reverse: bytes → time
-            try:
-                ts = parse_to_timestamp(line)
-            except ValueError as e:
-                print(f'Warning: line {i}: {e}', file=sys.stderr)
-                fail_count += 1
-                continue
-            ts_bytes = struct.pack('>I', ts)
-            byte_list = list(ts_bytes)
-
         if fmt == 'all':
+            input_type = detect_input_type(line)
             print(f'--- [{i}] ({input_type}) ---')
             print_formats(ts, byte_list, tz, fmt, line, input_type)
         else:
-            # Pipe-friendly: value only, no label
-            fmts = [
-                ('timestamp', format_timestamp(ts)),
-                ('hex',       format_hex(byte_list)),
-                ('escaped',   format_escaped(byte_list)),
-                ('bytes',     format_bytes(byte_list)),
-                ('java',      format_java_bytes(byte_list)),
-                ('time',      format_time(ts, tz)),
-            ]
-            for key, value in fmts:
-                if key == fmt:
-                    print(value)
-                    break
+            print(_format_single(ts, byte_list, tz, fmt))
         success_count += 1
 
     if fail_count > 0 and success_count == 0:
@@ -375,6 +379,9 @@ def main():
         '-b', '--batch', action='store_true',
         help='批量模式: 每行作为独立输入解析'
     )
+    parser.add_argument(
+        '--version', action='version', version='time-convert 1.0.0'
+    )
     args = parser.parse_args()
 
     try:
@@ -405,29 +412,12 @@ def main():
               file=sys.stderr)
         sys.exit(1)
 
-    # Forward: time string → timestamp/bytes
-    if input_type == "time":
-        try:
-            dt = parse_time_string(args.input, tz)
-        except ValueError as e:
-            print(f'Error: {e}', file=sys.stderr)
-            sys.exit(1)
-
-        ts = int(dt.timestamp())
-        ts_bytes = struct.pack('>I', ts)
-        byte_list = list(ts_bytes)
-        print_formats(ts, byte_list, tz, args.format)
-        return
-
-    # Reverse: timestamp/hex/escaped/bytes → time
     try:
-        ts = parse_to_timestamp(args.input)
+        ts, byte_list = convert_to_bytes(args.input, tz)
     except ValueError as e:
         print(f'Error: {e}', file=sys.stderr)
         sys.exit(1)
 
-    ts_bytes = struct.pack('>I', ts)
-    byte_list = list(ts_bytes)
     print_formats(ts, byte_list, tz, args.format)
 
 

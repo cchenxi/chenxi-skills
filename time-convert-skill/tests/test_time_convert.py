@@ -253,6 +253,22 @@ class TestEdgeCases(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertIn("[105, -18, 12, 80]", r.stdout)
 
+    def test_stdin_escaped(self):
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT), "-", "--format", "hex"],
+            input=r"\x69\xEE\x0C\x50",
+            capture_output=True, text=True
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("69EE0C50", r.stdout)
+
+    def test_compact_date_not_misdetected_as_hex(self):
+        """20260426 (8 digits) should be parsed as date, not hex."""
+        r = run("20260426")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("1777132800", r.stdout)
+        self.assertIn("2026-04-26 00:00:00 +0800", r.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

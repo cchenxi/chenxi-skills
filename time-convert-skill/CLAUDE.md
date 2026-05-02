@@ -31,7 +31,7 @@ python3 ./scripts/time-convert 'prefix_\x69\xEE\x0C\x50_data' -e
 printf '2026-04-26 21:00:00\n69EE0C50' | python3 ./scripts/time-convert - --batch
 
 # 从 stdin 读取
-echo '\x69\xEE\x0C\x50' | python3 ./scripts/time-convert -
+printf '%s\n' '\x69\xEE\x0C\x50' | python3 ./scripts/time-convert -
 
 # 运行测试
 python3 tests/test_time_convert.py

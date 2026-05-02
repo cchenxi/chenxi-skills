@@ -19,7 +19,7 @@ python3 ./scripts/time-convert '<input>' [-z TIMEZONE] [-f FORMAT] [-e] [-b]
 If `python3` is not available, try `python` or `python3.9`.
 
 Additional modes:
-- **stdin**: use `-` as input, e.g. `echo '\x69\xEE\x0C\x50' | python3 ./scripts/time-convert -`
+- **stdin**: use `-` as input, e.g. `printf '%s\n' '\x69\xEE\x0C\x50' | python3 ./scripts/time-convert -`
 - **batch**: `-b`/`--batch` treats each line as an independent input
 - **extract**: `-e` scans mixed text for timestamp candidates
 
