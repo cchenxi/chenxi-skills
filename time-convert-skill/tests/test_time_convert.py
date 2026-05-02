@@ -222,7 +222,7 @@ class TestBatchMode(unittest.TestCase):
 
     def test_batch_with_extract(self):
         r = run(
-            r"prefix_\x69\xEE\x0C\x50\nother_\x67\x89\xAB\xCD",
+            "prefix_\\x69\\xEE\\x0C\\x50\nother_\\x67\\x89\\xAB\\xCD",
             "--batch", "--extract"
         )
         self.assertEqual(r.returncode, 0)
