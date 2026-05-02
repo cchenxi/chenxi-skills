@@ -37,9 +37,9 @@ Single-file Python script (`scripts/rowkey-convert`) using only stdlib (`argpars
 
 **Conversion flows:**
 - **Forward** (mixed → other): parses `\xHH` escape sequences and literal characters into a byte list, then formats that byte list into any output format
-- **Reverse** (hex/bytes/annotated → mixed): parses input into a byte list, then formats to any output format
+- **Reverse** (hex/bytes/java_bytes/annotated → mixed): parses input into a byte list, then formats to any output format
 
-**Input auto-detection** (`detect_format`): `[]` → empty, `[...]` → bytes, `\xHH` present → mixed, even-length hex chars → hex, newline-separated hex tokens → annotated, otherwise → mixed.
+**Input auto-detection** (`detect_format`): `[]` → empty, `[-1,...]` → java_bytes (signed), `[...]` → bytes (unsigned), `\xHH` present → mixed, even-length hex chars → hex, newline-separated hex tokens → annotated, otherwise → mixed.
 
 **Output formats:** `hex` (continuous uppercase hex), `escaped` (`\xHH` for hbase shell), `bytes` (`[0, 255, ...]` unsigned), `java` (`[0, -1, ...]` signed, for Java code pasting), `annotated` (hex dump with ASCII line), `mixed` (printable chars as-is, rest `\xHH`).
 

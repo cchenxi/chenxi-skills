@@ -1,6 +1,6 @@
 ---
 name: rowkey-convert
-description: Convert HBase rowkey between mixed (hbase shell), hex, escaped, bytes array, and annotated formats. Use when the user pastes a rowkey string like \x00\xFFhello, 00FF68656C6C6F, or [0, 255, 104] and needs to see it in other formats.
+description: Convert HBase rowkey between mixed (hbase shell), hex, escaped, bytes array, and annotated formats. Use when the user pastes a rowkey string like \x00\xFFhello, 00FF68656C6C6F, [0, 255, 104], or [-1, -2, -3] and needs to see it in other formats.
 allowed-tools: Bash
 dependencies: python>=3.9
 user-invocable: true
@@ -66,6 +66,11 @@ python3 ./scripts/rowkey-convert 00FF68656C6C6F
 python3 ./scripts/rowkey-convert '[0, 255, 104, 101, 108, 108, 111]'
 ```
 
+### Reverse: Java bytes → all formats
+```bash
+python3 ./scripts/rowkey-convert '[-1, -2, -3]'
+```
+
 ### Single format output
 ```bash
 python3 ./scripts/rowkey-convert '\x00\xFFhello' --format escaped
@@ -114,7 +119,7 @@ Show the full output to the user in a code block. If they only need a specific f
 - If the script fails with `Error:`, relay the error message to the user and suggest checking the input format.
 - In batch mode, parse errors on a single line produce a `Warning:` to stderr but do not stop processing of remaining lines.
 - If `python3` is not found, try `python` or `python3.9`. If none are available, tell the user that Python 3.9+ is required.
-- Input auto-detection: `\xHH...` → mixed, `[...]` → bytes, even-length hex chars → hex, plain text (e.g. `hello`) → mixed.
+- Input auto-detection: `\xHH...` → mixed, `[-1,...]` → java_bytes, `[...]` → bytes, even-length hex chars → hex, plain text (e.g. `hello`) → mixed.
 
 ## Related skills
 
