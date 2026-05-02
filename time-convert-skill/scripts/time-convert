@@ -1,0 +1,425 @@
+#!/usr/bin/env python3
+"""Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp)."""
+
+import argparse
+import re
+import struct
+import sys
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+
+# ---------- timezone ----------
+
+def parse_timezone(tz_str: str):
+    """Parse a timezone string into a ZoneInfo or timezone object.
+
+    Supports: IANA names (Asia/Shanghai), UTC offsets (UTC+8, UTC-5, +08:00, +8, -5).
+    """
+    tz_str = tz_str.strip()
+
+    try:
+        return ZoneInfo(tz_str)
+    except (ZoneInfoNotFoundError, KeyError):
+        pass
+
+    m = re.match(r'^(?:UTC|GMT)?\s*([+-])(\d{1,2})(?::(\d{2}))?$', tz_str, re.IGNORECASE)
+    if m:
+        sign = 1 if m.group(1) == '+' else -1
+        hours = int(m.group(2))
+        minutes = int(m.group(3)) if m.group(3) else 0
+        offset = sign * timedelta(hours=hours, minutes=minutes)
+        return timezone(offset)
+
+    raise ValueError(f"Unrecognized timezone: '{tz_str}'. Use formats like Asia/Shanghai, UTC+8, +8, -5.")
+
+
+# ---------- time string parsing ----------
+
+TIME_FORMATS = [
+    '%Y-%m-%dT%H:%M:%S%z',
+    '%Y-%m-%dT%H:%M:%S',
+    '%Y-%m-%d %H:%M:%S%z',
+    '%Y-%m-%d %H:%M:%S',
+    '%Y-%m-%d %H:%M',
+    '%Y-%m-%d',
+    '%Y/%m/%d %H:%M:%S%z',
+    '%Y/%m/%d %H:%M:%S',
+    '%Y/%m/%d %H:%M',
+    '%Y/%m/%d',
+    '%Y%m%d%H%M%S',
+    '%Y%m%d%H%M',
+    '%Y%m%d',
+]
+
+
+def _try_parse_iso(s: str):
+    try:
+        return datetime.fromisoformat(s)
+    except (ValueError, TypeError):
+        return None
+
+
+def _try_parse_formats(s: str, tz):
+    for fmt in TIME_FORMATS:
+        try:
+            dt = datetime.strptime(s, fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=tz)
+            return dt
+        except ValueError:
+            continue
+    return None
+
+
+def parse_time_string(s: str, tz) -> datetime:
+    """Parse a time string into a timezone-aware datetime."""
+    s = s.strip()
+
+    dt = _try_parse_iso(s)
+    if dt is not None:
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=tz)
+        return dt
+
+    dt = _try_parse_formats(s, tz)
+    if dt is not None:
+        return dt
+
+    raise ValueError(
+        f"Cannot parse time string: '{s}'.\n"
+        "Supported formats: 2026-04-26T21:00:00+08:00, 2026-04-26 21:00:00, "
+        "2026/04/26 21:00, 20260426210000, etc."
+    )
+
+
+# ---------- detection ----------
+
+def detect_input_type(s: str) -> str:
+    """Detect input format: 'bytes', 'escaped', 'timestamp', 'hex', or 'time'."""
+    s = s.strip()
+    if not s:
+        return "empty"
+
+    if re.match(r'^\[.*\]$', s):
+        return "bytes"
+
+    if re.search(r'\\x[0-9a-fA-F]{2}', s):
+        return "escaped"
+
+    if re.fullmatch(r'\d{10}', s):
+        return "timestamp"
+
+    if re.fullmatch(r'[0-9a-fA-F]{8}', s) and re.search(r'[a-fA-F]', s):
+        return "hex"
+
+    return "time"
+
+
+# ---------- parsing ----------
+
+def parse_bytes_array(s: str) -> list[int]:
+    inner = s.strip().strip('[]')
+    if not inner:
+        raise ValueError("Empty array")
+    result = []
+    for token in inner.split(','):
+        token = token.strip()
+        if token.startswith('0x') or token.startswith('0X'):
+            val = int(token, 16)
+        else:
+            val = int(token)
+        if not (0 <= val <= 255):
+            raise ValueError(f"Byte value out of range: {val}")
+        result.append(val)
+    return result
+
+
+def parse_escaped(s: str) -> list[int]:
+    result = []
+    i = 0
+    while i < len(s):
+        if s[i] == '\\' and i + 3 < len(s) and s[i+1] == 'x':
+            result.append(int(s[i+2:i+4], 16))
+            i += 4
+        else:
+            result.append(ord(s[i]))
+            i += 1
+    return result
+
+
+def extract_timestamp_from_bytes(byte_list: list[int]) -> int:
+    if len(byte_list) < 4:
+        raise ValueError(f"Need at least 4 bytes, got {len(byte_list)}")
+    return struct.unpack('>I', bytes(byte_list[:4]))[0]
+
+
+def parse_to_timestamp(s: str) -> int:
+    input_type = detect_input_type(s)
+
+    if input_type == "empty":
+        raise ValueError("Empty input")
+
+    if input_type == "timestamp":
+        return int(s.strip())
+
+    if input_type == "bytes":
+        byte_list = parse_bytes_array(s)
+        return extract_timestamp_from_bytes(byte_list)
+
+    if input_type == "escaped":
+        byte_list = parse_escaped(s)
+        return extract_timestamp_from_bytes(byte_list)
+
+    if input_type == "hex":
+        s_clean = s.strip()
+        if len(s_clean) % 2 != 0:
+            raise ValueError(f"Hex string must have even length, got: {len(s_clean)}")
+        byte_list = [int(s_clean[i:i+2], 16) for i in range(0, len(s_clean), 2)]
+        return extract_timestamp_from_bytes(byte_list)
+
+    raise ValueError(f"Unrecognized input format: {s[:50]}")
+
+
+# ---------- formatting ----------
+
+def format_timestamp(ts: int) -> str:
+    return str(ts)
+
+
+def format_hex(byte_list: list[int]) -> str:
+    return ''.join(f'{b:02X}' for b in byte_list)
+
+
+def format_escaped(byte_list: list[int]) -> str:
+    return ''.join(f'\\x{b:02X}' for b in byte_list)
+
+
+def format_bytes(byte_list: list[int]) -> str:
+    return '[' + ', '.join(str(b) for b in byte_list) + ']'
+
+
+def format_java_bytes(byte_list: list[int]) -> str:
+    def to_signed(b: int) -> int:
+        return b if b < 128 else b - 256
+    return '[' + ', '.join(str(to_signed(b)) for b in byte_list) + ']'
+
+
+def format_time(ts: int, tz) -> str:
+    dt = datetime.fromtimestamp(ts, tz=tz)
+    return dt.strftime('%Y-%m-%d %H:%M:%S %z')
+
+
+def convert_to_bytes(input_str: str, tz) -> tuple[int, list[int]]:
+    """Parse input and return (unix_timestamp, list_of_4_bytes). Raises ValueError on failure."""
+    input_type = detect_input_type(input_str)
+    if input_type == "empty":
+        raise ValueError("Empty input")
+    if input_type == "time":
+        dt = parse_time_string(input_str, tz)
+        ts = int(dt.timestamp())
+    else:
+        ts = parse_to_timestamp(input_str)
+    ts_bytes = struct.pack('>I', ts)
+    return ts, list(ts_bytes)
+
+
+def _format_single(ts: int, byte_list: list[int], tz, fmt: str) -> str:
+    """Return the value string for a single format."""
+    if fmt == 'timestamp':
+        return str(ts)
+    if fmt == 'hex':
+        return format_hex(byte_list)
+    if fmt == 'escaped':
+        return format_escaped(byte_list)
+    if fmt == 'bytes':
+        return format_bytes(byte_list)
+    if fmt == 'java':
+        return format_java_bytes(byte_list)
+    if fmt == 'time':
+        return format_time(ts, tz)
+    raise ValueError(f"Unknown format: {fmt}")
+
+
+# ---------- extract ----------
+
+def extract_and_print(s: str, tz, fmt_filter: str, show_headers: bool = True):
+    """Extract 4-byte timestamp candidates from mixed text and print each."""
+    found_any = False
+
+    # Find \xHH sequences
+    pattern = re.compile(r'(\\x[0-9a-fA-F]{2})+')
+    for m in pattern.finditer(s):
+        seq = m.group()
+        byte_list = parse_escaped(seq)
+        if len(byte_list) < 4:
+            continue
+        for offset in range(len(byte_list) - 3):
+            ts = extract_timestamp_from_bytes(byte_list[offset:offset+4])
+            ts_bytes = byte_list[offset:offset+4]
+            found_any = True
+            if show_headers:
+                print(f'--- offset {offset} ({format_escaped(ts_bytes)}) ---')
+                print_formats(ts, ts_bytes, tz, fmt_filter)
+            else:
+                print(_format_single(ts, ts_bytes, tz, fmt_filter))
+
+    # Also find pure hex sequences (8+ chars, not part of escaped)
+    hex_pattern = re.compile(r'[0-9a-fA-F]{8,}')
+    for m in hex_pattern.finditer(s):
+        seq = m.group()
+        start = m.start()
+        if start >= 2 and s[start-2:start] == '\\x':
+            continue
+        for offset in range(0, len(seq) - 7, 2):
+            chunk = seq[offset:offset+8]
+            ts_bytes = [int(chunk[i:i+2], 16) for i in range(0, 8, 2)]
+            ts = extract_timestamp_from_bytes(ts_bytes)
+            found_any = True
+            if show_headers:
+                print(f'--- offset {offset//2} ({format_escaped(ts_bytes)}) ---')
+                print_formats(ts, ts_bytes, tz, fmt_filter)
+            else:
+                print(_format_single(ts, ts_bytes, tz, fmt_filter))
+
+    if not found_any:
+        print("No timestamp candidates found in input.")
+
+
+# ---------- output ----------
+
+FORMAT_LABELS = {
+    'timestamp': 'Timestamp',
+    'hex':       'Hex',
+    'escaped':   'Escaped',
+    'bytes':     'Bytes',
+    'java':      'Java bytes',
+    'time':      'Time',
+}
+
+
+def print_formats(ts: int, ts_bytes: list[int], tz, fmt: str, input_str: str = '', detected_fmt: str = ''):
+    """Print timestamp and byte list in the requested format(s)."""
+    if fmt == 'all':
+        if input_str:
+            print(f'[Input] ({detected_fmt})\n{input_str}\n')
+        for key, label in FORMAT_LABELS.items():
+            print(f'[{label}]     {_format_single(ts, ts_bytes, tz, key)}')
+    else:
+        label = FORMAT_LABELS.get(fmt, fmt)
+        print(f'[{label}]     {_format_single(ts, ts_bytes, tz, fmt)}')
+
+
+# ---------- batch ----------
+
+def batch_process(input_text: str, fmt: str, tz, extract: bool) -> int:
+    """Process input line-by-line as independent time inputs. Returns exit code."""
+    lines = input_text.split('\n')
+    success_count = 0
+    fail_count = 0
+
+    for i, line in enumerate(lines, start=1):
+        line = line.strip()
+        if not line:
+            continue
+
+        if extract:
+            if fmt == 'all':
+                print(f'--- [{i}] ---')
+            extract_and_print(line, tz, fmt, show_headers=(fmt == 'all'))
+            success_count += 1
+            continue
+
+        try:
+            ts, byte_list = convert_to_bytes(line, tz)
+        except ValueError as e:
+            print(f'Warning: line {i}: {e}', file=sys.stderr)
+            fail_count += 1
+            continue
+
+        if fmt == 'all':
+            input_type = detect_input_type(line)
+            print(f'--- [{i}] ({input_type}) ---')
+            print_formats(ts, byte_list, tz, fmt, line, input_type)
+        else:
+            print(_format_single(ts, byte_list, tz, fmt))
+        success_count += 1
+
+    if fail_count > 0 and success_count == 0:
+        return 1
+    return 0
+
+
+# ---------- main ----------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp).'
+    )
+    parser.add_argument(
+        'input', type=str, nargs='?',
+        help='Time string, Unix timestamp (10-digit), hex, \\xHH escaped, or byte array.'
+             ' Use "-" to read from stdin.'
+    )
+    parser.add_argument(
+        '-z', '--tz', type=str, default='Asia/Shanghai',
+        help='Timezone, default Asia/Shanghai (UTC+8). Supports IANA names, UTC+8, +8, -5, etc.'
+    )
+    parser.add_argument(
+        '-f', '--format', type=str,
+        choices=['timestamp', 'hex', 'escaped', 'bytes', 'java', 'time', 'all'],
+        default='all',
+        help='Output format filter (default: all); "java" outputs Java signed bytes'
+    )
+    parser.add_argument(
+        '-e', '--extract', action='store_true',
+        help='Extract timestamp candidates from mixed text'
+    )
+    parser.add_argument(
+        '-b', '--batch', action='store_true',
+        help='Batch mode: treat each line as independent input'
+    )
+    parser.add_argument(
+        '--version', action='version', version='time-convert 1.0.0'
+    )
+    args = parser.parse_args()
+
+    try:
+        tz = parse_timezone(args.tz)
+    except ValueError as e:
+        print(f'Error: {e}', file=sys.stderr)
+        sys.exit(1)
+
+    # Read from stdin if needed
+    if args.input is None or args.input == '-':
+        raw = sys.stdin.buffer.read()
+        args.input = raw.decode('latin-1').strip()
+        if not args.input:
+            print('Error: no input provided (stdin was empty).', file=sys.stderr)
+            sys.exit(1)
+
+    if args.batch:
+        sys.exit(batch_process(args.input, args.format, tz, args.extract))
+
+    if args.extract:
+        extract_and_print(args.input, tz, args.format)
+        return
+
+    input_type = detect_input_type(args.input)
+
+    if input_type == "empty":
+        print('Error: empty input. Provide a time string, timestamp, hex, \\xHH escaped, or byte array.',
+              file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        ts, byte_list = convert_to_bytes(args.input, tz)
+    except ValueError as e:
+        print(f'Error: {e}', file=sys.stderr)
+        sys.exit(1)
+
+    print_formats(ts, byte_list, tz, args.format)
+
+
+if __name__ == '__main__':
+    main()
