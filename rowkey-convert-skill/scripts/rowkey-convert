@@ -9,13 +9,16 @@ import sys
 # ---------- detection ----------
 
 def detect_format(s: str) -> str:
-    """Detect input format: 'mixed', 'hex', 'bytes', or 'annotated'."""
+    """Detect input format: 'mixed', 'hex', 'bytes', 'java_bytes', or 'annotated'."""
     s = s.strip()
     if not s:
         return "empty"
     if s == '[]':
         return "empty"
     if re.match(r'^\[.*\]$', s):
+        inner = s.strip()[1:-1]
+        if inner and any(t.strip().startswith('-') for t in inner.split(',')):
+            return "java_bytes"
         return "bytes"
     if '\n' in s:
         lines = s.split('\n')
@@ -76,6 +79,24 @@ def parse_bytes(s: str) -> list[int]:
     return result
 
 
+def parse_java_bytes(s: str) -> list[int]:
+    """Parse Java signed byte array like '[-1, -2, -3]' into unsigned byte values."""
+    inner = s.strip().strip('[]')
+    if not inner:
+        return []
+    result = []
+    for token in inner.split(','):
+        token = token.strip()
+        if token.startswith('0x') or token.startswith('0X'):
+            val = int(token, 16)
+        else:
+            val = int(token)
+        if not (-128 <= val <= 255):
+            raise ValueError(f"Byte value out of range: {val}")
+        result.append(val if val >= 0 else val + 256)
+    return result
+
+
 def parse_annotated(s: str) -> list[int]:
     """Parse annotated (hex dump) format into list of byte values."""
     hex_line = s.strip().split('\n')[0].strip()
@@ -94,6 +115,8 @@ def parse_input(s: str) -> list[int]:
         return parse_hex(s)
     elif fmt == "bytes":
         return parse_bytes(s)
+    elif fmt == "java_bytes":
+        return parse_java_bytes(s)
     elif fmt == "annotated":
         return parse_annotated(s)
     raise ValueError(f"Unsupported format: {s[:50]}")

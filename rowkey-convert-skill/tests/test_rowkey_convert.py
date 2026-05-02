@@ -291,5 +291,35 @@ class TestBatchMode(unittest.TestCase):
         self.assertEqual(len(lines), 2)
 
 
+class TestJavaBytesInput(unittest.TestCase):
+    """Java signed byte array as input (reverse conversion)"""
+
+    def test_java_bytes_to_all(self):
+        r = run("[-1, -2, -3]", "--format", "all")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("FFFEFD", r.stdout)
+        self.assertIn("[255, 254, 253]", r.stdout)
+        self.assertIn("[-1, -2, -3]", r.stdout)  # Java bytes output
+
+    def test_java_bytes_mixed_signs(self):
+        r = run("[-1, 0, 127, -128]", "--format", "hex")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("FF007F80", r.stdout)
+
+    def test_java_bytes_with_hex_prefix(self):
+        r = run("[0xFF, -1]", "--format", "bytes")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("[255, 255]", r.stdout)
+
+    def test_java_bytes_empty(self):
+        r = run("[]")
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_java_bytes_out_of_range(self):
+        r = run("[-129]")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("out of range", r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
