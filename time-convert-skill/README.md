@@ -1,42 +1,43 @@
 # time-convert
 
-时间字符串与 HBase rowkey 时间字节（4 字节 big-endian Unix 时间戳）互转工具。
+Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp).
 
-## 背景
+## Background
 
-在 Java+大数据项目中，HBase rowkey 常以 4 字节 big-endian Unix 时间戳（精确到秒）编码时间。线上排查问题时，需要在 `hbase shell` 输出的 `\xHH` 格式与人类可读的时间字符串之间频繁互转。本工具自动化这一过程。
+In Java/big-data projects, HBase rowkeys often encode time as a 4-byte big-endian Unix timestamp (second precision). When debugging, you frequently need to convert between `hbase shell` `\xHH` output and human-readable time strings. This tool automates that process.
 
-## 安装
+## Installation
 
-### 方式一：作为 Claude Code skill
+### Option 1: As a Claude Code skill
 
 ```bash
 cp -r . ~/.claude/skills/time-convert/
 ```
 
-之后在 Claude Code 中可直接通过 skill 调用。
+Then invoke via Claude Code skill.
 
-### 方式二：独立命令行工具
+### Option 2: Standalone CLI tool
 
 ```bash
 cp scripts/time-convert /usr/local/bin/time-convert
 chmod +x /usr/local/bin/time-convert
 ```
 
-### 依赖
+### Dependencies
 
-- Python 3.9+（无需额外 pip 安装，仅标准库）
+- Python 3.9+ (no pip packages required)
+- **Windows users:** `pip install tzdata` (provides IANA timezone data for `zoneinfo`)
 
-## 用法
+## Usage
 
 ```
-python3 ./scripts/time-convert <input> [-z 时区] [-f 格式] [-e] [-b]
+python3 ./scripts/time-convert <input> [-z TIMEZONE] [-f FORMAT] [-e] [-b]
 ```
 
-### 基本示例
+### Basic examples
 
 ```bash
-# 正向：时间字符串 → 所有格式
+# Forward: time string → all formats
 $ python3 ./scripts/time-convert '2026-04-26 21:00:00'
 [Timestamp]     1777208400
 [Hex]           69EE0C50
@@ -46,39 +47,39 @@ $ python3 ./scripts/time-convert '2026-04-26 21:00:00'
 [Time]          2026-04-26 21:00:00 +0800
 ```
 
-### 反向转换
+### Reverse conversion
 
-支持多种输入格式，自动检测：
+Supports multiple input formats with auto-detection:
 
 ```bash
-# Hex（从 HBase shell 复制后去掉 \x 前缀）
+# Hex (copy from HBase shell, remove \x prefix)
 $ python3 ./scripts/time-convert '69EE0C50'
 
-# Escaped（HBase shell 原生格式）
+# Escaped (HBase shell native format)
 $ python3 ./scripts/time-convert '\x69\xEE\x0C\x50'
 
-# Bytes 数组
+# Byte array
 $ python3 ./scripts/time-convert '[105, 238, 12, 80]'
 
-# Unix 时间戳
+# Unix timestamp
 $ python3 ./scripts/time-convert '1777208400'
 
-# 以上四种均输出相同结果 → 2026-04-26 21:00:00 +0800
+# All four produce the same result → 2026-04-26 21:00:00 +0800
 ```
 
-### 支持的输入格式
+### Supported input formats
 
-| 格式 | 示例 |
-|------|------|
-| ISO 8601 | `2026-04-26T21:00:00`、`2026-04-26T21:00:00+08:00` |
-| 日期时间 | `2026-04-26 21:00:00`、`2026-04-26 21:00` |
-| 日期 | `2026-04-26` |
-| 斜线分隔 | `2026/04/26 21:00:00` |
-| 紧凑格式 | `20260426210000`、`20260426` |
+| Format | Example |
+|--------|---------|
+| ISO 8601 | `2026-04-26T21:00:00`, `2026-04-26T21:00:00+08:00` |
+| Date time | `2026-04-26 21:00:00`, `2026-04-26 21:00` |
+| Date only | `2026-04-26` |
+| Slash separated | `2026/04/26 21:00:00` |
+| Compact | `20260426210000`, `20260426` |
 
-### 时区
+### Timezone
 
-默认 `Asia/Shanghai` (UTC+8)。通过 `-z` 指定：
+Default: `Asia/Shanghai` (UTC+8). Override with `-z`:
 
 ```bash
 $ python3 ./scripts/time-convert '2026-04-26 21:00:00' --tz UTC+0
@@ -86,16 +87,16 @@ $ python3 ./scripts/time-convert '2026-04-26 09:00:00' --tz America/New_York
 $ python3 ./scripts/time-convert '2026-04-26 21:00:00' --tz +9
 ```
 
-支持三种时区写法：IANA 名（`Asia/Tokyo`）、UTC 偏移（`UTC+8`）、简写偏移（`+8`、`-5`）。
+Supports three timezone formats: IANA names (`Asia/Tokyo`), UTC offsets (`UTC+8`), short offsets (`+8`, `-5`).
 
-### 筛选输出格式
+### Filter output format
 
 ```bash
-# 只需要 \xHH 格式，复制到 HBase shell 查询
+# Only need \xHH format for pasting into HBase shell
 $ python3 ./scripts/time-convert '2026-04-26 21:00:00' -f escaped
 \x69\xEE\x0C\x50
 
-# 只需要时间戳
+# Only need the timestamp
 $ python3 ./scripts/time-convert '2026-04-26 21:00:00' -f timestamp
 1777208400
 
@@ -104,25 +105,25 @@ $ python3 ./scripts/time-convert '2026-04-26 21:00:00' -f java
 [105, -18, 12, 80]
 ```
 
-可选值：`timestamp`、`hex`、`escaped`、`bytes`、`java`、`time`、`all`（默认）。
+Options: `timestamp`, `hex`, `escaped`, `bytes`, `java`, `time`, `all` (default).
 
-### 从混合行键提取时间
+### Extract timestamps from mixed rowkeys
 
-当一个行键包含前缀、时间戳、后缀等多个部分时，用 `-e` 扫描所有可能的时间片段：
+When a rowkey contains prefix, timestamp, suffix, use `-e` to scan all possible time segments:
 
 ```bash
 $ python3 ./scripts/time-convert 'prefix_\x69\xEE\x0C\x50_data_\x67\x89\xAB\xCD' -e
---- 偏移 0 (\x69\xEE\x0C\x50) ---
+--- offset 0 (\x69\xEE\x0C\x50) ---
 [Timestamp]     1777208400
 [Time]          2026-04-26 21:00:00 +0800
---- 偏移 0 (\x67\x89\xAB\xCD) ---
+--- offset 0 (\x67\x89\xAB\xCD) ---
 [Timestamp]     1737075661
 [Time]          2025-01-17 09:01:01 +0800
 ```
 
-### 批量模式
+### Batch mode
 
-每行作为独立输入解析，格式自动检测：
+Each line processed as independent input with format auto-detection:
 
 ```bash
 $ printf '2026-04-26 21:00:00\n69EE0C50\n[105, 238, 12, 80]' | \
@@ -138,7 +139,7 @@ $ printf '2026-04-26 21:00:00\n69EE0C50\n[105, 238, 12, 80]' | \
 ...
 ```
 
-管道友好输出（仅值，无标签）：
+Pipe-friendly output (values only, no labels):
 
 ```bash
 $ printf '2026-04-26 21:00:00\n69EE0C50' | \
@@ -147,28 +148,28 @@ $ printf '2026-04-26 21:00:00\n69EE0C50' | \
 69EE0C50
 ```
 
-### stdin 输入
+### stdin input
 
 ```bash
 $ printf '%s\n' '\x69\xEE\x0C\x50' | python3 ./scripts/time-convert -
 ```
 
-## 与 rowkey-convert 配合
+## Using with rowkey-convert
 
 ```bash
-# 场景：HBase shell 输出了一条行键，需要分析其中时间
+# Scenario: HBase shell outputs a rowkey, need to analyze the time portion
 $ python3 ~/.claude/skills/rowkey-convert/scripts/rowkey-convert \
     'prefix_\x69\xEE\x0C\x50' -f escaped
 \x70\x72\x65\x66\x69\x78\x5F\x69\xEE\x0C\x50
 
-# 取出时间部分直接用 time-convert 解析
+# Extract the time portion and parse with time-convert
 $ python3 ./scripts/time-convert '\x69\xEE\x0C\x50'
 ```
 
-## 测试
+## Testing
 
 ```bash
 python3 tests/test_time_convert.py
 ```
 
-33 个用例覆盖正向转换、反向转换（4 种输入）、时区（3 种写法）、格式筛选（含 java）、提取模式、批量模式（含管道友好、错误继续、batch+extract）。
+35 test cases covering forward conversion, reverse conversion (4 input types), timezones (3 formats), format filtering (including java), extract mode, batch mode (including pipe-friendly, error continuation, batch+extract).

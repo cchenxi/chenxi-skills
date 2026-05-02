@@ -1,6 +1,6 @@
 ---
 name: time-convert
-description: 时间与HBase rowkey字节互转。正向：时间字符串→时间戳/Hex/Escaped/Bytes/Java。反向：时间戳/Hex/Bytes→时间字符串。支持全球时区、批量模式、stdin。
+description: Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp). Forward: time string → timestamp/hex/escaped/bytes/java. Reverse: timestamp/hex/bytes → time string. Supports global timezones, batch mode, stdin.
 allowed-tools: Bash
 dependencies: python>=3.9
 user-invocable: true
@@ -8,7 +8,9 @@ user-invocable: true
 
 # Time Convert
 
-在时间字符串与 HBase rowkey 时间字节（4 字节 big-endian Unix 时间戳）之间互相转换。
+Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp).
+
+> **Windows users:** Install IANA timezone data before use: `pip install tzdata`
 
 ## Usage
 
