@@ -165,7 +165,7 @@ class TestExtractMode(unittest.TestCase):
     def test_extract_no_match(self):
         r = run("no timestamp here", "-e")
         self.assertEqual(r.returncode, 0)
-        self.assertIn("未在输入中找到时间戳候选", r.stdout)
+        self.assertIn("No timestamp candidates found in input.", r.stdout)
 
 
 class TestBatchMode(unittest.TestCase):

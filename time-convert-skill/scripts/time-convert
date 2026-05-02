@@ -31,7 +31,7 @@ def parse_timezone(tz_str: str):
         offset = sign * timedelta(hours=hours, minutes=minutes)
         return timezone(offset)
 
-    raise ValueError(f"无法识别的时区: '{tz_str}'。请使用如 Asia/Shanghai、UTC+8、+8、-5 等格式。")
+    raise ValueError(f"Unrecognized timezone: '{tz_str}'. Use formats like Asia/Shanghai, UTC+8, +8, -5.")
 
 
 # ---------- time string parsing ----------
@@ -87,9 +87,9 @@ def parse_time_string(s: str, tz) -> datetime:
         return dt
 
     raise ValueError(
-        f"无法解析时间字符串: '{s}'。\n"
-        f"支持的格式: 2026-04-26T21:00:00+08:00, 2026-04-26 21:00:00, "
-        f"2026/04/26 21:00, 20260426210000 等。"
+        f"Cannot parse time string: '{s}'.\n"
+        "Supported formats: 2026-04-26T21:00:00+08:00, 2026-04-26 21:00:00, "
+        "2026/04/26 21:00, 20260426210000, etc."
     )
 
 
@@ -121,7 +121,7 @@ def detect_input_type(s: str) -> str:
 def parse_bytes_array(s: str) -> list[int]:
     inner = s.strip().strip('[]')
     if not inner:
-        raise ValueError("空数组")
+        raise ValueError("Empty array")
     result = []
     for token in inner.split(','):
         token = token.strip()
@@ -130,7 +130,7 @@ def parse_bytes_array(s: str) -> list[int]:
         else:
             val = int(token)
         if not (0 <= val <= 255):
-            raise ValueError(f"字节值超出范围: {val}")
+            raise ValueError(f"Byte value out of range: {val}")
         result.append(val)
     return result
 
@@ -150,7 +150,7 @@ def parse_escaped(s: str) -> list[int]:
 
 def extract_timestamp_from_bytes(byte_list: list[int]) -> int:
     if len(byte_list) < 4:
-        raise ValueError(f"需要至少4字节，当前只有{len(byte_list)}字节")
+        raise ValueError(f"Need at least 4 bytes, got {len(byte_list)}")
     return struct.unpack('>I', bytes(byte_list[:4]))[0]
 
 
@@ -158,7 +158,7 @@ def parse_to_timestamp(s: str) -> int:
     input_type = detect_input_type(s)
 
     if input_type == "empty":
-        raise ValueError("空输入")
+        raise ValueError("Empty input")
 
     if input_type == "timestamp":
         return int(s.strip())
@@ -174,11 +174,11 @@ def parse_to_timestamp(s: str) -> int:
     if input_type == "hex":
         s_clean = s.strip()
         if len(s_clean) % 2 != 0:
-            raise ValueError(f"Hex字符串长度必须为偶数，当前长度: {len(s_clean)}")
+            raise ValueError(f"Hex string must have even length, got: {len(s_clean)}")
         byte_list = [int(s_clean[i:i+2], 16) for i in range(0, len(s_clean), 2)]
         return extract_timestamp_from_bytes(byte_list)
 
-    raise ValueError(f"无法识别的输入格式: {s[:50]}")
+    raise ValueError(f"Unrecognized input format: {s[:50]}")
 
 
 # ---------- formatting ----------
@@ -214,7 +214,7 @@ def convert_to_bytes(input_str: str, tz) -> tuple[int, list[int]]:
     """Parse input and return (unix_timestamp, list_of_4_bytes). Raises ValueError on failure."""
     input_type = detect_input_type(input_str)
     if input_type == "empty":
-        raise ValueError("空输入")
+        raise ValueError("Empty input")
     if input_type == "time":
         dt = parse_time_string(input_str, tz)
         ts = int(dt.timestamp())
@@ -259,7 +259,7 @@ def extract_and_print(s: str, tz, fmt_filter: str, show_headers: bool = True):
             ts_bytes = byte_list[offset:offset+4]
             found_any = True
             if show_headers:
-                print(f'--- 偏移 {offset} ({format_escaped(ts_bytes)}) ---')
+                print(f'--- offset {offset} ({format_escaped(ts_bytes)}) ---')
                 print_formats(ts, ts_bytes, tz, fmt_filter)
             else:
                 print(_format_single(ts, ts_bytes, tz, fmt_filter))
@@ -277,13 +277,13 @@ def extract_and_print(s: str, tz, fmt_filter: str, show_headers: bool = True):
             ts = extract_timestamp_from_bytes(ts_bytes)
             found_any = True
             if show_headers:
-                print(f'--- 偏移 {offset//2} ({format_escaped(ts_bytes)}) ---')
+                print(f'--- offset {offset//2} ({format_escaped(ts_bytes)}) ---')
                 print_formats(ts, ts_bytes, tz, fmt_filter)
             else:
                 print(_format_single(ts, ts_bytes, tz, fmt_filter))
 
     if not found_any:
-        print("未在输入中找到时间戳候选。")
+        print("No timestamp candidates found in input.")
 
 
 # ---------- output ----------
@@ -354,30 +354,30 @@ def batch_process(input_text: str, fmt: str, tz, extract: bool) -> int:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='在时间字符串与 HBase rowkey 时间字节之间互相转换。'
+        description='Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp).'
     )
     parser.add_argument(
         'input', type=str, nargs='?',
-        help='输入: 时间字符串、Unix时间戳(10位)、Hex、\\xHH格式、或bytes数组。'
-             ' 使用 "-" 从 stdin 读取。'
+        help='Time string, Unix timestamp (10-digit), hex, \\xHH escaped, or bytes array.'
+             ' Use "-" to read from stdin.'
     )
     parser.add_argument(
         '-z', '--tz', type=str, default='Asia/Shanghai',
-        help='时区，默认 Asia/Shanghai (UTC+8)。支持 IANA 时区名、UTC+8、+8、-5 等格式。'
+        help='Timezone, default Asia/Shanghai (UTC+8). Supports IANA names, UTC+8, +8, -5, etc.'
     )
     parser.add_argument(
         '-f', '--format', type=str,
         choices=['timestamp', 'hex', 'escaped', 'bytes', 'java', 'time', 'all'],
         default='all',
-        help='输出格式筛选 (默认: all)'
+        help='Output format filter (default: all)'
     )
     parser.add_argument(
         '-e', '--extract', action='store_true',
-        help='从混合文本中提取时间片段并逐段解析'
+        help='Extract timestamp candidates from mixed text'
     )
     parser.add_argument(
         '-b', '--batch', action='store_true',
-        help='批量模式: 每行作为独立输入解析'
+        help='Batch mode: treat each line as independent input'
     )
     parser.add_argument(
         '--version', action='version', version='time-convert 1.0.0'
@@ -408,7 +408,7 @@ def main():
     input_type = detect_input_type(args.input)
 
     if input_type == "empty":
-        print('Error: 空输入。请提供时间字符串、时间戳、Hex、\\xHH 格式或 bytes 数组。',
+        print('Error: empty input. Provide a time string, timestamp, hex, \\xHH escaped, or bytes array.',
               file=sys.stderr)
         sys.exit(1)
 
