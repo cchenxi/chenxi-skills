@@ -18,10 +18,21 @@ Then invoke via Claude Code skill.
 
 ### Option 2: Standalone CLI tool
 
+**macOS / Linux:**
+
 ```bash
 cp scripts/time-convert /usr/local/bin/time-convert
 chmod +x /usr/local/bin/time-convert
 ```
+
+**Windows:**
+
+```powershell
+mkdir C:\tools
+copy scripts\time-convert C:\tools\time-convert
+```
+
+Then add `C:\tools` to your `PATH` environment variable.
 
 ### Dependencies
 
