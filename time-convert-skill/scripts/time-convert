@@ -380,7 +380,7 @@ def main():
         help='Batch mode: treat each line as independent input'
     )
     parser.add_argument(
-        '--version', action='version', version='time-convert 1.0.0'
+        '--version', action='version', version='time-convert 1.0.1'
     )
     args = parser.parse_args()
 
