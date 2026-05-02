@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout *)",
+      "Bash(cp -r time-convert-skill/* ~/.claude/skills/time-convert/)",
+      "Bash(cp -v \"/Users/chenxi/workspaces/Claude Code/chenxi-skills/time-convert-skill/SKILL.md\" /Users/chenxi/.claude/skills/time-convert/SKILL.md)",
+      "Bash(cp -v \"/Users/chenxi/workspaces/Claude Code/chenxi-skills/time-convert-skill/scripts/time-convert\" /Users/chenxi/.claude/skills/time-convert/scripts/time-convert)",
+      "Bash(cp -v \"/Users/chenxi/workspaces/Claude Code/chenxi-skills/time-convert-skill/tests/test_time_convert.py\" /Users/chenxi/.claude/skills/time-convert/tests/test_time_convert.py)",
+      "Bash(cp -v \"/Users/chenxi/workspaces/Claude Code/chenxi-skills/time-convert-skill/CLAUDE.md\" /Users/chenxi/.claude/skills/time-convert/CLAUDE.md)",
+      "Bash(cp -v \"/Users/chenxi/workspaces/Claude Code/chenxi-skills/time-convert-skill/README.md\" /Users/chenxi/.claude/skills/time-convert/README.md)",
+      "Skill(time-convert)",
+      "Skill(time-convert:*)",
+      "Bash(python3 tests/test_time_convert.py)",
+      "Bash(python3 scripts/time-convert *)",
+      "Bash(printf *)",
+      "Bash(git *)"
+    ]
+  }
+}
