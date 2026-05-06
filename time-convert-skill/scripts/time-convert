@@ -50,7 +50,20 @@ TIME_FORMATS = [
     '%Y%m%d%H%M%S',
     '%Y%m%d%H%M',
     '%Y%m%d',
+    '%Y-%m-%dT%H:%M:%S.%f%z',
+    '%Y-%m-%dT%H:%M:%S.%f',
+    '%Y-%m-%d %H:%M:%S.%f%z',
+    '%Y-%m-%d %H:%M:%S.%f',
 ]
+
+
+def _normalize_microseconds(s: str) -> str:
+    """Normalize .123 to .123000 for strptime %f parsing."""
+    m = re.match(r'^(.+\.\d{1,6})(.*)$', s)
+    if m:
+        parts = m.group(1).rsplit('.', 1)
+        return parts[0] + '.' + parts[1].ljust(6, '0') + m.group(2)
+    return s
 
 
 def _try_parse_iso(s: str):
@@ -61,9 +74,10 @@ def _try_parse_iso(s: str):
 
 
 def _try_parse_formats(s: str, tz):
+    s_normalized = _normalize_microseconds(s)
     for fmt in TIME_FORMATS:
         try:
-            dt = datetime.strptime(s, fmt)
+            dt = datetime.strptime(s_normalized, fmt)
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=tz)
             return dt
@@ -89,7 +103,7 @@ def parse_time_string(s: str, tz) -> datetime:
     raise ValueError(
         f"Cannot parse time string: '{s}'.\n"
         "Supported formats: 2026-04-26T21:00:00+08:00, 2026-04-26 21:00:00, "
-        "2026/04/26 21:00, 20260426210000, etc."
+        "2026/04/26 21:00, 2026-04-26 21:00:00.123, 20260426210000, etc."
     )
 
 
@@ -107,8 +121,14 @@ def detect_input_type(s: str) -> str:
     if re.search(r'\\x[0-9a-fA-F]{2}', s):
         return "escaped"
 
+    if re.fullmatch(r'\d{13}', s):
+        return "timestamp"
+
     if re.fullmatch(r'\d{10}', s):
         return "timestamp"
+
+    if re.fullmatch(r'[0-9a-fA-F]{16}', s):
+        return "hex"
 
     if re.fullmatch(r'[0-9a-fA-F]{8}', s) and re.search(r'[a-fA-F]', s):
         return "hex"
@@ -149,9 +169,11 @@ def parse_escaped(s: str) -> list[int]:
 
 
 def extract_timestamp_from_bytes(byte_list: list[int]) -> int:
-    if len(byte_list) < 4:
-        raise ValueError(f"Need at least 4 bytes, got {len(byte_list)}")
-    return struct.unpack('>I', bytes(byte_list[:4]))[0]
+    if len(byte_list) >= 8:
+        return struct.unpack('>Q', bytes(byte_list[:8]))[0]
+    if len(byte_list) >= 4:
+        return struct.unpack('>I', bytes(byte_list[:4]))[0]
+    raise ValueError(f"Need at least 4 bytes, got {len(byte_list)}")
 
 
 def parse_to_timestamp(s: str) -> int:
@@ -205,22 +227,35 @@ def format_java_bytes(byte_list: list[int]) -> str:
     return '[' + ', '.join(str(to_signed(b)) for b in byte_list) + ']'
 
 
-def format_time(ts: int, tz) -> str:
-    dt = datetime.fromtimestamp(ts, tz=tz)
-    return dt.strftime('%Y-%m-%d %H:%M:%S %z')
+def format_time(ts: int, byte_list: list[int], tz) -> str:
+    if len(byte_list) >= 8:
+        dt = datetime.fromtimestamp(ts / 1000.0, tz=tz)
+        return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3] + ' ' + dt.strftime('%z')
+    else:
+        dt = datetime.fromtimestamp(ts, tz=tz)
+        return dt.strftime('%Y-%m-%d %H:%M:%S %z')
 
 
 def convert_to_bytes(input_str: str, tz) -> tuple[int, list[int]]:
-    """Parse input and return (unix_timestamp, list_of_4_bytes). Raises ValueError on failure."""
+    """Parse input and return (timestamp, byte_list). Raises ValueError on failure."""
     input_type = detect_input_type(input_str)
     if input_type == "empty":
         raise ValueError("Empty input")
     if input_type == "time":
         dt = parse_time_string(input_str, tz)
-        ts = int(dt.timestamp())
+        ts_float = dt.timestamp()
+        if ts_float != int(ts_float):
+            ts = int(ts_float * 1000)
+            ts_bytes = struct.pack('>Q', ts)
+        else:
+            ts = int(ts_float)
+            ts_bytes = struct.pack('>I', ts)
     else:
         ts = parse_to_timestamp(input_str)
-    ts_bytes = struct.pack('>I', ts)
+        if ts >= 10**12:
+            ts_bytes = struct.pack('>Q', ts)
+        else:
+            ts_bytes = struct.pack('>I', ts)
     return ts, list(ts_bytes)
 
 
@@ -237,7 +272,7 @@ def _format_single(ts: int, byte_list: list[int], tz, fmt: str) -> str:
     if fmt == 'java':
         return format_java_bytes(byte_list)
     if fmt == 'time':
-        return format_time(ts, tz)
+        return format_time(ts, byte_list, tz)
     raise ValueError(f"Unknown format: {fmt}")
 
 
@@ -263,6 +298,15 @@ def extract_and_print(s: str, tz, fmt_filter: str, show_headers: bool = True):
                 print_formats(ts, ts_bytes, tz, fmt_filter)
             else:
                 print(_format_single(ts, ts_bytes, tz, fmt_filter))
+        for offset in range(len(byte_list) - 7):
+            ts = extract_timestamp_from_bytes(byte_list[offset:offset+8])
+            ts_bytes = byte_list[offset:offset+8]
+            found_any = True
+            if show_headers:
+                print(f'--- offset {offset} ({format_escaped(ts_bytes)}) [8-byte] ---')
+                print_formats(ts, ts_bytes, tz, fmt_filter)
+            else:
+                print(_format_single(ts, ts_bytes, tz, fmt_filter))
 
     # Also find pure hex sequences (8+ chars, not part of escaped)
     hex_pattern = re.compile(r'[0-9a-fA-F]{8,}')
@@ -271,13 +315,23 @@ def extract_and_print(s: str, tz, fmt_filter: str, show_headers: bool = True):
         start = m.start()
         if start >= 2 and s[start-2:start] == '\\x':
             continue
+        for offset in range(0, len(seq) - 15, 2):
+            chunk = seq[offset:offset+16]
+            ts_bytes = [int(chunk[i:i+2], 16) for i in range(0, 16, 2)]
+            ts = extract_timestamp_from_bytes(ts_bytes)
+            found_any = True
+            if show_headers:
+                print(f'--- offset {offset//2} ({format_escaped(ts_bytes)}) [8-byte] ---')
+                print_formats(ts, ts_bytes, tz, fmt_filter)
+            else:
+                print(_format_single(ts, ts_bytes, tz, fmt_filter))
         for offset in range(0, len(seq) - 7, 2):
             chunk = seq[offset:offset+8]
             ts_bytes = [int(chunk[i:i+2], 16) for i in range(0, 8, 2)]
             ts = extract_timestamp_from_bytes(ts_bytes)
             found_any = True
             if show_headers:
-                print(f'--- offset {offset//2} ({format_escaped(ts_bytes)}) ---')
+                print(f'--- offset {offset//2} ({format_escaped(ts_bytes)}) [4-byte] ---')
                 print_formats(ts, ts_bytes, tz, fmt_filter)
             else:
                 print(_format_single(ts, ts_bytes, tz, fmt_filter))
