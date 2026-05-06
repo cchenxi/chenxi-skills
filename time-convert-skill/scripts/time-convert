@@ -294,7 +294,7 @@ def extract_and_print(s: str, tz, fmt_filter: str, show_headers: bool = True):
             ts_bytes = byte_list[offset:offset+4]
             found_any = True
             if show_headers:
-                print(f'--- offset {offset} ({format_escaped(ts_bytes)}) ---')
+                print(f'--- offset {offset} ({format_escaped(ts_bytes)}) [4-byte] ---')
                 print_formats(ts, ts_bytes, tz, fmt_filter)
             else:
                 print(_format_single(ts, ts_bytes, tz, fmt_filter))
