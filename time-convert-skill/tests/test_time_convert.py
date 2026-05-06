@@ -314,5 +314,31 @@ class TestEdgeCases(unittest.TestCase):
         self.assertIn("2026-04-26 00:00:00 +0800", r.stdout)
 
 
+class TestMixedFormat(unittest.TestCase):
+    """Mixed output format (HBase shell native)"""
+
+    def test_mixed_output(self):
+        r = run("2026-04-26 21:00:00", "-f", "mixed")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn(r"i\xEE\x0CP", r.stdout)
+
+    def test_mixed_input_parsed(self):
+        """Mixed input (printable + \\xHH) should parse correctly"""
+        r = run(r"prefix_\x69\xEE\x0C\x50_data")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("1777208400", r.stdout)
+
+    def test_escaped_input_still_parsed(self):
+        """Pure \\xHH input should still parse correctly"""
+        r = run(r"\x69\xEE\x0C\x50")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("1777208400", r.stdout)
+
+    def test_mixed_format_in_all_output(self):
+        r = run("2026-04-26 21:00:00")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("[Mixed]", r.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

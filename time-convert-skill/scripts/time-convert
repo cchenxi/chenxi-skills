@@ -119,7 +119,9 @@ def detect_input_type(s: str) -> str:
         return "bytes"
 
     if re.search(r'\\x[0-9a-fA-F]{2}', s):
-        return "escaped"
+        if re.fullmatch(r'(\\x[0-9a-fA-F]{2})+', s):
+            return "escaped"
+        return "mixed"
 
     if re.fullmatch(r'\d{12,13}', s):
         return "timestamp"
@@ -193,6 +195,13 @@ def parse_to_timestamp(s: str) -> int:
         byte_list = parse_escaped(s)
         return extract_timestamp_from_bytes(byte_list)
 
+    if input_type == "mixed":
+        # Extract only \xHH bytes, ignore interleaved printable chars
+        byte_list = [int(m.group(1), 16) for m in re.finditer(r'\\x([0-9a-fA-F]{2})', s)]
+        if not byte_list:
+            raise ValueError("No hex escapes found in mixed input")
+        return extract_timestamp_from_bytes(byte_list)
+
     if input_type == "hex":
         s_clean = s.strip()
         if len(s_clean) % 2 != 0:
@@ -215,6 +224,17 @@ def format_hex(byte_list: list[int]) -> str:
 
 def format_escaped(byte_list: list[int]) -> str:
     return ''.join(f'\\x{b:02X}' for b in byte_list)
+
+
+def format_mixed(byte_list: list[int]) -> str:
+    """Format as mixed string: printable ASCII as chars, rest as \\xHH."""
+    result = []
+    for b in byte_list:
+        if 0x20 <= b <= 0x7E:
+            result.append(chr(b))
+        else:
+            result.append(f'\\x{b:02X}')
+    return ''.join(result)
 
 
 def format_bytes(byte_list: list[int]) -> str:
@@ -267,6 +287,8 @@ def _format_single(ts: int, byte_list: list[int], tz, fmt: str) -> str:
         return format_hex(byte_list)
     if fmt == 'escaped':
         return format_escaped(byte_list)
+    if fmt == 'mixed':
+        return format_mixed(byte_list)
     if fmt == 'bytes':
         return format_bytes(byte_list)
     if fmt == 'java':
@@ -346,6 +368,7 @@ FORMAT_LABELS = {
     'timestamp': 'Timestamp',
     'hex':       'Hex',
     'escaped':   'Escaped',
+    'mixed':     'Mixed',
     'bytes':     'Bytes',
     'java':      'Java bytes',
     'time':      'Time',
@@ -421,7 +444,7 @@ def main():
     )
     parser.add_argument(
         '-f', '--format', type=str,
-        choices=['timestamp', 'hex', 'escaped', 'bytes', 'java', 'time', 'all'],
+        choices=['timestamp', 'hex', 'escaped', 'mixed', 'bytes', 'java', 'time', 'all'],
         default='all',
         help='Output format filter (default: all); "java" outputs Java signed bytes'
     )
