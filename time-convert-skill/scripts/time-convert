@@ -121,7 +121,7 @@ def detect_input_type(s: str) -> str:
     if re.search(r'\\x[0-9a-fA-F]{2}', s):
         return "escaped"
 
-    if re.fullmatch(r'\d{13}', s):
+    if re.fullmatch(r'\d{12,13}', s):
         return "timestamp"
 
     if re.fullmatch(r'\d{10}', s):
