@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Claude Code skill — `time-convert`, for converting between time strings and 4-byte big-endian Unix timestamps in HBase rowkeys. Complementary to `rowkey-convert` skill: rowkey-convert handles rowkey format conversion (mixed/hex/bytes), time-convert focuses on time encoding/decoding.
+Claude Code skill — `time-convert`, for converting between time strings and 4-byte or 8-byte big-endian Unix timestamps in HBase rowkeys. Complementary to `rowkey-convert` skill: rowkey-convert handles rowkey format conversion (mixed/hex/bytes), time-convert focuses on time encoding/decoding.
 
 ## Commands
 
@@ -17,6 +17,10 @@ python3 ./scripts/time-convert '69EE0C50'
 python3 ./scripts/time-convert '\x69\xEE\x0C\x50'
 python3 ./scripts/time-convert '[105, 238, 12, 80]'
 python3 ./scripts/time-convert '1777208400'
+
+# Millisecond: 8-byte / 13-digit timestamp
+python3 ./scripts/time-convert '1790784000123'
+python3 ./scripts/time-convert '2026-10-01 00:00:00.123'
 
 # Specify timezone
 python3 ./scripts/time-convert '2026-04-26 21:00:00' --tz UTC+0
@@ -42,14 +46,14 @@ python3 tests/test_time_convert.py
 Single-file Python script (`scripts/time-convert`), using only stdlib (`argparse`, `re`, `struct`, `sys`, `datetime`, `zoneinfo`), no external dependencies. Requires Python 3.9+.
 
 **Conversion paths:**
-- **Forward** (time string → bytes): `parse_time_string()` → `datetime.timestamp()` → `struct.pack('>I', ts)` → 6 output formats
-- **Reverse** (bytes → time string): `detect_input_type()` → `parse_to_timestamp()` → `datetime.fromtimestamp(ts, tz=tz)` → time string
+- **Forward** (time string → bytes): `parse_time_string()` → `datetime.timestamp()` → `struct.pack('>I', ts)` for seconds, `struct.pack('>Q', ts)` for milliseconds → 6 output formats
+- **Reverse** (bytes → time string): `detect_input_type()` → `parse_to_timestamp()` → `datetime.fromtimestamp(ts, tz=tz)` for seconds, `datetime.fromtimestamp(ts/1000.0, tz=tz)` for ms → time string
 
-**Input detection** (`detect_input_type`): `[byte array]` > `\xHH` escaped > 10-digit timestamp > 8-char hex (with at least one A-F letter) > time string.
+**Input detection** (`detect_input_type`): `[byte array]` > `\xHH` escaped > `\d{12,13}` ms timestamp > `\d{10}` second timestamp > 16-char hex (8-byte ms) > 8-char hex (4-byte, with at least one A-F letter) > time string.
 
 **Output formats:** `timestamp` (Unix timestamp), `hex` (uppercase hex), `escaped` (`\xHH` format), `bytes` (`[0, 255, ...]`), `java` (`[0, -1, ...]` signed bytes), `time` (formatted time string).
 
-**Extract mode** (`-e`): Scans mixed text for `\xHH` sequences and 8+ char hex sequences, parsing each 4-byte sliding window as a timestamp candidate.
+**Extract mode** (`-e`): Scans mixed text for `\xHH` sequences and 8+ char hex sequences, parsing each 4-byte and 8-byte sliding window as a timestamp candidate.
 
 **Batch mode** (`-b`/`--batch`): Each line processed independently with auto-detection. Parse failures emit `Warning:` to stderr and continue. Supports combination with `-e`.
 

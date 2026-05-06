@@ -1,6 +1,6 @@
 ---
 name: time-convert
-description: "Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp). Forward: time → timestamp/hex/escaped/bytes/java. Reverse: timestamp/hex/bytes → time. Supports global timezones, batch mode, stdin."
+description: "Convert between time strings and HBase rowkey time bytes (4-byte or 8-byte big-endian Unix timestamp). Forward: time → timestamp/hex/escaped/bytes/java. Reverse: timestamp/hex/bytes → time. Supports global timezones, batch mode, stdin."
 allowed-tools: Bash
 dependencies: python>=3.9
 user-invocable: true
@@ -8,7 +8,7 @@ user-invocable: true
 
 # Time Convert
 
-Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp).
+Convert between time strings and HBase rowkey time bytes (4-byte or 8-byte big-endian Unix timestamp).
 
 > **Windows users:** Install IANA timezone data before use: `pip install tzdata`
 
@@ -87,6 +87,21 @@ printf '2026-04-26 21:00:00\n69EE0C50' | python3 ./scripts/time-convert - --batc
 ```
 69EE0C50
 69EE0C50
+```
+
+### Millisecond timestamps
+
+Inputs are auto-detected by byte/digit count:
+
+```bash
+# 13-digit = millisecond timestamp
+$ python3 ./scripts/time-convert '1790784000123'
+
+# 16-char hex = 8-byte ms
+$ python3 ./scripts/time-convert '000001A0F30B507B'
+
+# Time string with .123 precision
+$ python3 ./scripts/time-convert '2026-10-01 00:00:00.123'
 ```
 
 ## Displaying results

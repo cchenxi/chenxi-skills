@@ -1,10 +1,10 @@
 # time-convert
 
-Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp).
+Convert between time strings and HBase rowkey time bytes (4-byte or 8-byte big-endian Unix timestamp).
 
 ## Background
 
-In Java/big-data projects, HBase rowkeys often encode time as a 4-byte big-endian Unix timestamp (second precision). When debugging, you frequently need to convert between `hbase shell` `\xHH` output and human-readable time strings. This tool automates that process.
+In Java/big-data projects, HBase rowkeys often encode time as a 4-byte big-endian Unix timestamp (second precision) or an 8-byte big-endian Unix timestamp (millisecond precision). When debugging, you frequently need to convert between `hbase shell` `\xHH` output and human-readable time strings. This tool automates that process.
 
 ## Installation
 
@@ -87,6 +87,29 @@ $ python3 ./scripts/time-convert '1777208400'
 | Date only | `2026-04-26` |
 | Slash separated | `2026/04/26 21:00:00` |
 | Compact | `20260426210000`, `20260426` |
+
+### Millisecond timestamps
+
+Time strings with sub-second precision (e.g. `.123`) are automatically detected and encoded as 8-byte (64-bit) big-endian millisecond Unix timestamps. During reverse conversion, inputs are auto-detected by byte count or digit count:
+
+```bash
+# 13-digit number = millisecond timestamp
+$ python3 ./scripts/time-convert '1790784000123'
+[Timestamp]     1790784000123
+[Hex]           000001A0F30B507B
+[Escaped]       \x00\x00\x01\xA0\xF3\x0B\x50\x7B
+[Bytes]         [0, 0, 1, 160, 243, 11, 80, 123]
+[Java bytes]    [0, 0, 1, -96, -13, 11, 80, 123]
+[Time]          2026-10-01 00:00:00.123 +0800
+
+# 16-char hex = 8-byte ms
+$ python3 ./scripts/time-convert '000001A0F30B507B'
+
+# Time string with .123 precision
+$ python3 ./scripts/time-convert '2026-10-01 00:00:00.123'
+```
+
+Second-precision timestamps (10 digits) continue to use 4-byte encoding and display without `.000`.
 
 ### Timezone
 
@@ -183,4 +206,4 @@ $ python3 ./scripts/time-convert '\x69\xEE\x0C\x50'
 python3 tests/test_time_convert.py
 ```
 
-35 test cases covering forward conversion, reverse conversion (4 input types), timezones (3 formats), format filtering (including java), extract mode, batch mode (including pipe-friendly, error continuation, batch+extract).
+42 test cases covering forward conversion, reverse conversion (5 input types including ms), timezones (3 formats), format filtering (including java), extract mode, batch mode (including pipe-friendly, error continuation, batch+extract), and millisecond support.
