@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp)."""
+"""Convert between time strings and HBase rowkey time bytes (4-byte or 8-byte big-endian Unix timestamp)."""
 
 import argparse
 import re
@@ -252,7 +252,7 @@ def convert_to_bytes(input_str: str, tz) -> tuple[int, list[int]]:
             ts_bytes = struct.pack('>I', ts)
     else:
         ts = parse_to_timestamp(input_str)
-        if ts >= 10**12:
+        if ts > 0xFFFFFFFF:
             ts_bytes = struct.pack('>Q', ts)
         else:
             ts_bytes = struct.pack('>I', ts)
@@ -408,11 +408,11 @@ def batch_process(input_text: str, fmt: str, tz, extract: bool) -> int:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Convert between time strings and HBase rowkey time bytes (4-byte big-endian Unix timestamp).'
+        description='Convert between time strings and HBase rowkey time bytes (4-byte or 8-byte big-endian Unix timestamp).'
     )
     parser.add_argument(
         'input', type=str, nargs='?',
-        help='Time string, Unix timestamp (10-digit), hex, \\xHH escaped, or byte array.'
+        help='Time string, Unix timestamp (10/13-digit), hex (8/16-char), \\xHH escaped, or byte array.'
              ' Use "-" to read from stdin.'
     )
     parser.add_argument(
@@ -434,7 +434,7 @@ def main():
         help='Batch mode: treat each line as independent input'
     )
     parser.add_argument(
-        '--version', action='version', version='time-convert 1.0.1'
+        '--version', action='version', version='time-convert 1.1.0'
     )
     args = parser.parse_args()
 

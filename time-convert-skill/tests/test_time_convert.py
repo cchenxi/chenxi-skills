@@ -83,6 +83,50 @@ class TestReverseConversion(unittest.TestCase):
         self.assertIn("2026-04-26 21:00:00 +0800", r.stdout)
 
 
+class TestMillisecondConversion(unittest.TestCase):
+    """Millisecond timestamp support"""
+
+    def test_ms_timestamp_to_all(self):
+        r = run("1790784000123")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("1790784000123", r.stdout)
+        self.assertIn("2026-10-01 00:00:00.123", r.stdout)
+
+    def test_ms_hex_to_all(self):
+        r = run("000001A0F30B507B")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("1790784000123", r.stdout)
+        self.assertIn("2026-10-01 00:00:00.123", r.stdout)
+
+    def test_ms_escaped_to_all(self):
+        r = run(r"\x00\x00\x01\xA0\xF3\x0B\x50\x7B")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("1790784000123", r.stdout)
+
+    def test_ms_bytes_to_all(self):
+        r = run("[0, 0, 1, 160, 243, 11, 80, 123]")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("1790784000123", r.stdout)
+
+    def test_ms_time_string_forward(self):
+        r = run("2026-10-01 00:00:00.123")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("1790784000123", r.stdout)
+        self.assertIn("2026-10-01 00:00:00.123", r.stdout)
+
+    def test_ms_12_digit_timestamp(self):
+        """12-digit ms timestamps should also work"""
+        r = run("100000000000")
+        self.assertEqual(r.returncode, 0)
+
+    def test_seconds_still_work(self):
+        """Second-precision must still produce seconds output (no .000)"""
+        r = run("1790784000")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("2026-10-01 00:00:00 +0800", r.stdout)
+        self.assertNotIn(".000", r.stdout)
+
+
 class TestTimezone(unittest.TestCase):
     """Timezone handling"""
 
