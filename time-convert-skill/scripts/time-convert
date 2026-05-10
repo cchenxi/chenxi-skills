@@ -196,10 +196,12 @@ def parse_to_timestamp(s: str) -> int:
         return extract_timestamp_from_bytes(byte_list)
 
     if input_type == "mixed":
-        # Extract only \xHH bytes, ignore interleaved printable chars
-        byte_list = [int(m.group(1), 16) for m in re.finditer(r'\\x([0-9a-fA-F]{2})', s)]
-        if not byte_list:
-            raise ValueError("No hex escapes found in mixed input")
+        # Try \xHH-only extraction first — for texts with embedded escapes
+        hex_only = [int(m.group(1), 16) for m in re.finditer(r'\\x([0-9a-fA-F]{2})', s)]
+        if len(hex_only) >= 4:
+            return extract_timestamp_from_bytes(hex_only)
+        # Fall back: treat every character as a byte (pure Mixed format)
+        byte_list = parse_escaped(s)
         return extract_timestamp_from_bytes(byte_list)
 
     if input_type == "hex":
